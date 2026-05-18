@@ -14,7 +14,6 @@ from fpdf import FPDF
 # ══════════════════════════════════════════════════════════════════════════════
 
 API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
-
 st.set_page_config(
     page_title="EcoSentia Evidence Layer",
     layout="wide",
