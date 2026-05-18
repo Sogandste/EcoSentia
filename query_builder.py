@@ -1,51 +1,155 @@
 # query_builder.py
-from typing import Dict, List
+"""
+Builds refined Boolean queries from domain anchors, claim analysis, and user fields.
+"""
 
-STOP_TERMS = {
-    "a", "an", "the", "for", "with", "and", "or", "of",
-    "to", "in", "on", "by", "at", "is", "are", "was",
-}
+import re
+from typing import List, Dict
+from domain_config import (
+    FOG_ANCHORS, EV_ANCHORS, LENS_TERMS, KNOWN_PHRASES, get_anchors,
+)
+from logger import get_logger
 
-LENS_TERMS: Dict[str, List[str]] = {
-    "mechanism":         ["mechanism", "pathway", "binding", "uptake"],
-    "context":           ["microenvironment", "boundary conditions", "humidity", "pH"],
-    "scale":             ["scaling", "transport", "diffusion", "geometry"],
-    "manufacturability": ["fabrication", "synthesis", "reproducibility", "purification"],
-    "safety":            ["immunogenicity", "toxicity", "clearance", "biodistribution"],
-}
+log = get_logger(__name__)
 
-PRESET_TERMS: Dict[str, List[str]] = {
-    "fog": ["fog harvesting", "wettability", "surface structure", "water collection",
-            "biomimetic surface", "Namib beetle"],
-    "ev":  ["extracellular vesicle", "exosome", "drug delivery", "nanoparticle",
-            "targeted therapy", "membrane vesicle"],
-}
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "for", "of", "and", "or", "to", "by", "with",
+    "in", "on", "from", "inspired", "based", "structure", "system",
+    "device", "application", "improved", "better", "passive", "using",
+    "that", "this", "its", "their", "which", "are", "was", "been",
+    "can", "may", "could", "would", "should", "has", "have", "had",
+})
 
-def tokenize_claim(claim: str) -> List[str]:
-    if not claim: return []
-    for char in ",.;:()/":
-        claim = claim.replace(char, " ")
-    tokens = claim.lower().split()
-    return [t for t in tokens if t not in STOP_TERMS and len(t) > 3]
 
-def build_query(preset: str = "fog", project: str = "", claim: str = "", lens: str = "mechanism") -> str:
-    base_terms = PRESET_TERMS.get(preset, [])
-    claim_tokens = tokenize_claim(claim)
-    extra_tokens = [t for t in claim_tokens if t not in " ".join(base_terms).lower()][:3]
-    all_terms = base_terms + extra_tokens
+def _clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())
 
-    if not all_terms: return claim or ""
 
-    formatted = [f'"{t}"' if " " in t else t for t in all_terms]
-    return " OR ".join(formatted)
+def _split_csv(text: str) -> List[str]:
+    if not text:
+        return []
+    return [p.strip() for p in re.split(r"[,\n;]+", text) if p.strip()]
 
-def refine_query(query: str, lens: str = "mechanism", max_terms: int = 3) -> str:
-    terms = LENS_TERMS.get(lens, [])[:max_terms]
-    if not terms: return query
-    if any(f'"{t}"' in query or t in query for t in terms): return query
-    group = "(" + " OR ".join(f'"{t}"' for t in terms) + ")"
-    return f"({query}) AND {group}"
 
-def build_refined_query(preset: str = "fog", project: str = "", claim: str = "", lens: str = "mechanism") -> str:
-    base = build_query(preset=preset, project=project, claim=claim, lens=lens)
-    return refine_query(base, lens=lens)
+def _extract_claim_terms(claim: str) -> List[str]:
+    """Extract meaningful terms from a claim using phrase matching + tokenization."""
+    claim = _clean_text(claim)
+    if not claim:
+        return []
+
+    lowered = claim.lower()
+
+    # Phase 1: Known multi-word phrases
+    phrases = [p for p in KNOWN_PHRASES if p in lowered]
+
+    # Phase 2: Single tokens
+    tokens = re.findall(r"[A-Za-z0-9\-]+", lowered)
+    tokens = [t for t in tokens if len(t) > 2 and t not in _STOP_WORDS]
+
+    # Deduplicate preserving order
+    seen = set()
+    out = []
+    for x in phrases + tokens:
+        if x not in seen:
+            out.append(x)
+            seen.add(x)
+
+    return out[:14]
+
+
+def _quote(term: str) -> str:
+    term = term.strip()
+    return f'"{term}"' if " " in term else term
+
+
+def _or_block(terms: List[str], limit: int = 8) -> str:
+    terms = [_quote(t) for t in terms if t][:limit]
+    if not terms:
+        return ""
+    if len(terms) == 1:
+        return terms[0]
+    return "(" + " OR ".join(terms) + ")"
+
+
+def build_refined_query(
+    preset: str,
+    project: str,
+    claim: str,
+    lens: str,
+    domain_mode: str = "Fog",
+    biological_model: str = "",
+    target_function: str = "",
+    application_context: str = "",
+    mechanism_keywords: str = "",
+    exclude_terms: str = "",
+) -> str:
+    """
+    Build a structured Boolean query.
+    
+    Strategy:
+    - For known domains (fog/ev): anchor terms + user fields + lens terms
+    - For custom: claim-driven + user fields
+    """
+    mode = (domain_mode or preset or "fog").strip().lower()
+    lens_norm = (lens or "mechanism").strip().lower()
+    claim_terms = _extract_claim_terms(claim)
+    l_terms = LENS_TERMS.get(lens_norm, [])
+
+    bio = _split_csv(biological_model)
+    func = _split_csv(target_function)
+    ctx = _split_csv(application_context)
+    mech = _split_csv(mechanism_keywords)
+    excl = _split_csv(exclude_terms)
+
+    anchors = get_anchors(mode)
+
+    if mode in ("fog", "ev"):
+        blocks = [
+            _or_block(anchors["bio_model"] + bio, limit=6),
+            _or_block(anchors["function"] + func, limit=6),
+            _or_block(anchors["mechanism"] + mech + l_terms[:3], limit=8),
+            _or_block(anchors["design"] + ctx, limit=6),
+        ]
+        neg = anchors["negative"] + excl
+    else:
+        # Custom: claim-driven + user fields
+        blocks = [
+            _or_block(bio + claim_terms[:3], limit=6),
+            _or_block(func + claim_terms[2:6], limit=6),
+            _or_block(mech + l_terms + claim_terms[5:9], limit=8),
+            _or_block(ctx + claim_terms[8:12], limit=6),
+        ]
+        neg = excl
+
+    blocks = [b for b in blocks if b]
+    if not blocks:
+        blocks = [_or_block(claim_terms[:8])]
+
+    query = " AND ".join(blocks)
+
+    if neg:
+        neg_block = _or_block(neg, limit=12)
+        if neg_block:
+            query = f"{query} NOT {neg_block}"
+
+    log.debug(f"Built query [{mode}/{lens_norm}]: {query[:120]}...")
+    return _clean_text(query)
+
+
+def build_query_metadata(
+    claim: str, lens: str, domain_mode: str = "Fog",
+    biological_model: str = "", target_function: str = "",
+    application_context: str = "", mechanism_keywords: str = "",
+    exclude_terms: str = "",
+) -> Dict[str, List[str]]:
+    """Return structured metadata about what went into query building."""
+    return {
+        "claim_terms": _extract_claim_terms(claim),
+        "lens_terms": LENS_TERMS.get((lens or "").lower(), []),
+        "bio": _split_csv(biological_model),
+        "function": _split_csv(target_function),
+        "context": _split_csv(application_context),
+        "mechanism": _split_csv(mechanism_keywords),
+        "exclude": _split_csv(exclude_terms),
+        "mode": [domain_mode],
+    }

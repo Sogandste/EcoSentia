@@ -1,130 +1,130 @@
 # prompt_builder.py
-from models import SnapshotModel
-from evidence_utils import classify_support_level, build_evidence_note, format_source_counts
+"""
+Generates evidence-aware prompts for LLM interrogation of biomimetic claims.
+"""
+
+from typing import Dict, Any, List
 from bias_checker import detect_biases
+from domain_config import LENS_CHECKLIST, ALL_LENSES
+from logger import get_logger
 
-LENS_FOCUS: dict = {
-    "mechanism":         "causal validity, mechanism plausibility, and the risk of superficial analogy",
-    "context":           "environmental or microenvironmental dependencies and boundary conditions",
-    "scale":             "transferability across size regimes, transport physics, and geometry",
-    "manufacturability": "synthesis feasibility, purification, reproducibility, and durability",
-    "safety":            "immunogenicity, toxicity, clearance, biodistribution, and off-target effects",
-}
+log = get_logger(__name__)
 
-LENS_CHECKLIST: dict = {
-    "mechanism":         ["causal pathway stated explicitly", "analogy goes beyond morphology", "experimental evidence cited"],
-    "context":           ["boundary conditions defined", "microenvironment specified", "operational range stated"],
-    "scale":             ["size regime addressed", "transport or diffusion limits discussed", "geometry dependence noted"],
-    "manufacturability": ["fabrication route described", "purification yield realistic", "batch reproducibility addressed"],
-    "safety":            ["immunogenicity profile discussed", "clearance mechanism identified", "off-target risk assessed"],
-}
 
-DOMAIN_LABEL: dict = {
-    "fog": "bioinspired fog-harvesting surface design",
-    "ev":  "extracellular vesicle-inspired nanomedicine",
-}
+def _format_evidence_note(snap: Dict[str, Any]) -> str:
+    support = snap.get("support_level", "none")
+    combined = snap.get("combined_count", 0)
+    direct_hits = snap.get("direct_hits", 0)
+    summary = snap.get("summary", "")
+    return (
+        f"Support level: {support}. "
+        f"Records: {combined}. Direct hits: {direct_hits}. "
+        f"Summary: {summary}"
+    )
 
-def build_evidence_aware_prompts(preset: str, lens: str, claim: str, query_text: str, snapshot: SnapshotModel) -> dict:
-    support_level   = classify_support_level(snapshot)
-    evidence_note   = build_evidence_note(snapshot, support_level)
-    source_summary  = format_source_counts(snapshot.source_counts)
-    detected_biases = detect_biases(claim)
-    domain          = DOMAIN_LABEL.get(preset, "biomimetic design")
-    focus           = LENS_FOCUS.get(lens, "scientific plausibility")
-    checklist       = LENS_CHECKLIST.get(lens, [])
 
-    if detected_biases:
-        bias_lines = "\n".join(f"  - {b['bias']}: {b['explanation']}" for b in detected_biases)
-        bias_block = f"\nDetected translation risk patterns (rule-based flags — verify manually):\n{bias_lines}"
-    else:
-        bias_block = ""
+def _build_master(claim: str, lens: str, query_text: str, snap: Dict[str, Any]) -> str:
+    support = snap.get("support_level", "none")
+    combined = snap.get("combined_count", 0)
+    direct_hits = snap.get("direct_hits", 0)
+    summary = snap.get("summary", "")
 
-    master_prompt = f"""
-You are critically evaluating an AI-generated design concept in {domain}.
+    return (
+        f"You are evaluating a biomimetic design claim through the **{lens.title()}** lens.\n\n"
+        f"## Claim\n{claim}\n\n"
+        f"## Query Used\n{query_text}\n\n"
+        f"## Evidence Snapshot\n"
+        f"- Support level: {support}\n"
+        f"- Combined records: {combined}\n"
+        f"- Direct hits: {direct_hits}\n"
+        f"- Summary: {summary}\n\n"
+        f"## Your Task\n"
+        f"1. Assess whether the claim is scientifically grounded given available evidence.\n"
+        f"2. State the likely mechanism explicitly.\n"
+        f"3. Distinguish biological analogy from validated functional transfer.\n"
+        f"4. Identify what evidence directly supports the claim and what remains uncertain.\n"
+        f"5. **Verdict:** Grounded / Partial / Speculative.\n"
+        f"6. Confidence estimate (Low / Medium / High) with justification."
+    )
 
-== CLAIM ==
-{claim}
 
-== EVIDENCE CONTEXT ==
-Query used       : {query_text}
-Total records    : {snapshot.combined_count}
-Direct matches   : {snapshot.direct_hits}
-Sources          : {source_summary}
-Support level    : {support_level}
-Note             : {evidence_note}{bias_block}
+def _build_counter(claim: str, lens: str, evidence_note: str) -> str:
+    return (
+        f"Challenge this biomimetic claim critically.\n\n"
+        f"## Claim\n{claim}\n\n"
+        f"## Lens: {lens.title()}\n"
+        f"## Evidence: {evidence_note}\n\n"
+        f"## Critical Questions\n"
+        f"- What assumptions are untested?\n"
+        f"- Where might the biological analogy be misleading?\n"
+        f"- What contextual or scale mismatches could break the transfer?\n"
+        f"- What experiments would be required before confidence is justified?\n"
+        f"- What alternative explanations exist for the claimed performance?"
+    )
 
-== TASK ==
-Evaluate this claim under the lens of {focus}.
 
-Structure your response as:
-1. What appears grounded based on available evidence
-2. What requires experimental validation before it can be stated as fact
-3. Where the analogy may be superficial rather than mechanistic
-4. One concrete gap that would change your assessment if filled
+def _build_uncertainty(claim: str, evidence_note: str) -> str:
+    return (
+        f"Map the uncertainties in this claim.\n\n"
+        f"## Claim\n{claim}\n\n"
+        f"## Evidence\n{evidence_note}\n\n"
+        f"## Return Structure\n"
+        f"1. **Known** — What is established from retrieved literature.\n"
+        f"2. **Suggested** — What is only indirectly implied.\n"
+        f"3. **Unknown** — What remains unsupported or speculative.\n"
+        f"4. **Next Steps** — Priority list of evidence to seek.\n"
+        f"5. **Risk Assessment** — What could go wrong if unknowns are ignored."
+    )
 
-Do not treat record counts as quality signals.
-If evidence is limited, say so explicitly. Avoid overconfidence.
-""".strip()
 
-    counter_prompt = f"""
-Critique your previous evaluation of this biomimetic concept.
+def _build_redesign(claim: str, evidence_note: str) -> str:
+    return (
+        f"Redesign this claim into a more evidence-aware version.\n\n"
+        f"## Original Claim\n{claim}\n\n"
+        f"## Evidence Context\n{evidence_note}\n\n"
+        f"## Instructions\n"
+        f"- Preserve the useful biomimetic idea.\n"
+        f"- Remove overclaiming or unsupported extrapolations.\n"
+        f"- Narrow the mechanism if needed.\n"
+        f"- Specify conditions, scale, or validation steps.\n"
+        f"- State which aspects require further investigation.\n\n"
+        f"## Output\n"
+        f"- **Revised Claim** (1–3 sentences)\n"
+        f"- **Rationale** (why changes were made)\n"
+        f"- **Remaining Gaps** (what still needs validation)"
+    )
 
-Lens: {lens}
-Evidence pool: {snapshot.combined_count} records ({snapshot.direct_hits} direct matches)
 
-Find specifically:
-- Assumptions you accepted without evidence
-- Contexts where the concept would fail
-- Cases where the evidence pool is too small to support your conclusion
-- The single most likely point of oversimplification in the original claim
+def build_evidence_aware_prompts(
+    preset: str,
+    lens: str,
+    claim: str,
+    query_text: str,
+    snapshot: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Generate a suite of evidence-aware prompts for LLM evaluation.
+    
+    Returns dict with: support_level, evidence_note, detected_biases,
+    master_prompt, counter_prompt, uncertainty_prompt, redesign_prompt, look_for.
+    """
+    snap = snapshot or {}
+    lens_norm = (lens or "mechanism").lower()
+    evidence_note = _format_evidence_note(snap)
+    biases = detect_biases(claim, lens=lens_norm)
 
-State what you were too confident about and why.
-""".strip()
+    look_for = LENS_CHECKLIST.get(lens_norm, LENS_CHECKLIST["mechanism"])
 
-    uncertainty_prompt = f"""
-List the top unresolved uncertainties for this claim.
-
-Claim : {claim}
-Lens  : {lens}
-
-For each uncertainty:
-- State what is unknown
-- Classify the next step:
-    [ literature review | simulation/modeling | in vitro | in vivo | expert judgment ]
-- Estimate resolution timeline:
-    [ near-term < 1 yr | medium-term 1–3 yr | long-term > 3 yr ]
-
-Keep answers concrete. Avoid generic scientific caveats.
-""".strip()
-
-    redesign_prompt = f"""
-Rewrite this biomimetic design claim as a scientifically careful hypothesis.
-
-Original claim:
-{claim}
-
-Requirements:
-- Preserve the core design idea
-- Replace absolute statements with conditional ones where evidence is absent
-- Separate what is grounded from what is speculative
-- Reflect the {lens} lens
-- Use language appropriate for a methods section or grant proposal
-
-Output format:
-  Revised claim         : [one sentence]
-  Grounded components   : [bullet list]
-  Speculative components: [bullet list]
-  Suggested validation  : [one sentence]
-""".strip()
-
-    return {
-        "support_level":      support_level,
-        "evidence_note":      evidence_note,
-        "detected_biases":    detected_biases,
-        "look_for":           checklist,
-        "source_summary":     source_summary,
-        "master_prompt":      master_prompt,
-        "counter_prompt":     counter_prompt,
-        "uncertainty_prompt": uncertainty_prompt,
-        "redesign_prompt":    redesign_prompt,
+    result = {
+        "support_level": snap.get("support_level", "none"),
+        "evidence_note": evidence_note,
+        "detected_biases": biases,
+        "master_prompt": _build_master(claim, lens, query_text, snap),
+        "counter_prompt": _build_counter(claim, lens, evidence_note),
+        "uncertainty_prompt": _build_uncertainty(claim, evidence_note),
+        "redesign_prompt": _build_redesign(claim, evidence_note),
+        "look_for": look_for,
     }
+
+    log.info(f"Built prompts for lens={lens_norm}, support={snap.get('support_level','none')}")
+    return result
