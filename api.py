@@ -3,36 +3,108 @@ from __future__ import annotations
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from bias_checker import detect_biases
 from domain_config import ALL_LENSES
+from literature import run_evidence_scan
 from logger import get_logger
 from models import EvidencePayload, PromptPayload, ScanResult, SnapshotModel
 from prompt_builder import build_evidence_aware_prompts
 from query_builder import build_refined_query
-from literature import run_evidence_scan
-from bias_checker import detect_biases
 
 APP_VERSION = "0.5.1"
 SERVICE_NAME = "EcoSentia Evidence API"
 
 log = get_logger(__name__, level=os.getenv("LOG_LEVEL", "INFO"))
 
+MAX_WORKERS = int(os.getenv("ECOSENTIA_MAX_WORKERS", "3"))
+LENS_SCAN_TIMEOUT = int(os.getenv("ECOSENTIA_LENS_TIMEOUT", "60"))
+
+
+def _parse_allowed_origins() -> List[str]:
+    raw = os.getenv(
+        "ECOSENTIA_ALLOWED_ORIGINS",
+        "http://localhost:8501,http://127.0.0.1:8501",
+    ).strip()
+
+    if not raw:
+        return []
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if "*" in parts:
+        return ["*"]
+    return parts
+
+
+ALLOWED_ORIGINS = _parse_allowed_origins()
+
 app = FastAPI(title=SERVICE_NAME, version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+حتماً. این هم **نسخه polished و production-clean `api.py`** که منطق فعلی‌ات را عوض نمی‌کند، فقط تمیزتر و امن‌ترش می‌کند.
+
+### بهبودهای اعمال‌شده
+- CORS از حالت wildcard بهتر شده و از env می‌خواند
+- shutdown تمیز برای `ThreadPoolExecutor`
+- startup log
+- helper برای timeout result
+- helper برای error result
+- responseها همان contract قبلی را حفظ می‌کنند
+- هیچ mock یا تغییر منطق پروژه ندارد
+
+---
+
+## `api.py`
+
+```python
+from __future__ import annotations
+
+import asyncio
+import os
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+from bias_checker import detect_biases
+from domain_config import ALL_LENSES
+from literature import run_evidence_scan
+from logger import get_logger
+from models import EvidencePayload, PromptPayload, ScanResult, SnapshotModel
+from prompt_builder import build_evidence_aware_prompts
+from query_builder import build_refined_query
+
+APP_VERSION = "0.5.1"
+SERVICE_NAME = "EcoSentia Evidence API"
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+MAX_WORKERS = int(os.getenv("ECOSENTIA_MAX_WORKERS", "3"))
+LENS_SCAN_TIMEOUT = int(os.getenv("ECOSENTIA_LENS_TIMEOUT", "60"))
+
+log = get_logger(__name__, level=LOG_LEVEL)
+
+app = FastAPI(title=SERVICE_NAME, version=APP_VERSION)
+
+raw_origins = os.getenv(
+    "ECOSENTIA_ALLOWED_ORIGINS",
+    "http://localhost:8501,http://127.0.0.1:8501",
+).split(",")
+
+ALLOWED_ORIGINS: List[str] = [origin.strip() for origin in raw_origins if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
+    allow_credentials=False if ALLOWED_ORIGINS else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-MAX_WORKERS = int(os.getenv("ECOSENTIA_MAX_WORKERS", "3"))
-LENS_SCAN_TIMEOUT = int(os.getenv("ECOSENTIA_LENS_TIMEOUT", "60"))
 
 _executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
@@ -41,7 +113,10 @@ def _resolve_mode(payload: EvidencePayload) -> str:
     return (payload.domain_mode or payload.preset or "fog").strip().lower()
 
 
-def _build_query_from_payload(payload: EvidencePayload, lens_override: str | None = None) -> str:
+def _build_query_from_payload(
+    payload: EvidencePayload,
+    lens_override: str | None = None,
+) -> str:
     return build_refined_query(
         preset=payload.preset,
         project=payload.project,
@@ -56,7 +131,11 @@ def _build_query_from_payload(payload: EvidencePayload, lens_override: str | Non
     )
 
 
-def _run_scan(payload: EvidencePayload, query_text: str, lens_override: str | None = None) -> Dict[str, Any]:
+def _run_scan(
+    payload: EvidencePayload,
+    query_text: str,
+    lens_override: str | None = None,
+) -> Dict[str, Any]:
     mode = _resolve_mode(payload)
     lens = lens_override or payload.lens
 
@@ -69,6 +148,24 @@ def _run_scan(payload: EvidencePayload, query_text: str, lens_override: str | No
         lens=lens,
         exclude_terms=payload.exclude_terms or "",
     )
+
+
+def _timeout_result(timeout_seconds: int) -> Dict[str, Any]:
+    return {
+        "support_level": "none",
+        "detected_biases": [],
+        "query_used": "",
+        "error": f"Timeout ({timeout_seconds}s)",
+    }
+
+
+def _error_result(message: str) -> Dict[str, Any]:
+    return {
+        "support_level": "none",
+        "detected_biases": [],
+        "query_used": "",
+        "error": message,
+    }
 
 
 def _scan_single_lens(payload: EvidencePayload, lens: str, mode: str) -> Dict[str, Any]:
@@ -95,13 +192,30 @@ def _scan_single_lens(payload: EvidencePayload, lens: str, mode: str) -> Dict[st
         }
 
     except Exception as exc:
-        log.exception("Lens scan failed", extra={"lens": lens, "error": str(exc)})
-        return {
-            "support_level": "none",
-            "detected_biases": [],
-            "query_used": "",
-            "error": str(exc),
-        }
+        log.exception(
+            "Lens scan failed",
+            extra={"lens": lens, "error": str(exc)},
+        )
+        return _error_result(str(exc))
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    log.info(
+        "EcoSentia API starting",
+        extra={
+            "version": APP_VERSION,
+            "max_workers": MAX_WORKERS,
+            "lens_scan_timeout": LENS_SCAN_TIMEOUT,
+            "allowed_origins": ALLOWED_ORIGINS,
+        },
+    )
+
+
+@app.on_event("shutdown")
+def shutdown_event() -> None:
+    log.info("EcoSentia API shutting down")
+    _executor.shutdown(wait=False, cancel_futures=True)
 
 
 @app.get("/")
@@ -122,7 +236,8 @@ def health() -> Dict[str, Any]:
         "config": {
             "max_workers": MAX_WORKERS,
             "lens_scan_timeout_sec": LENS_SCAN_TIMEOUT,
-            "log_level": os.getenv("LOG_LEVEL", "INFO"),
+            "log_level": LOG_LEVEL,
+            "allowed_origins": ALLOWED_ORIGINS,
             "ncbi_api_key_configured": bool(os.getenv("NCBI_API_KEY")),
             "ecosentia_email_configured": bool(os.getenv("ECOSENTIA_EMAIL")),
         },
@@ -232,23 +347,22 @@ async def scan_all_lenses(payload: EvidencePayload) -> Dict[str, Any]:
                 result = await asyncio.wait_for(future, timeout=LENS_SCAN_TIMEOUT)
                 matrix[lens] = result
             except asyncio.TimeoutError:
-                log.warning("Lens scan timeout", extra={"lens": lens, "timeout": LENS_SCAN_TIMEOUT})
-                matrix[lens] = {
-                    "support_level": "none",
-                    "detected_biases": [],
-                    "query_used": "",
-                    "error": f"Timeout ({LENS_SCAN_TIMEOUT}s)",
-                }
+                log.warning(
+                    "Lens scan timeout",
+                    extra={"lens": lens, "timeout": LENS_SCAN_TIMEOUT},
+                )
+                matrix[lens] = _timeout_result(LENS_SCAN_TIMEOUT)
             except Exception as exc:
-                log.exception("Lens scan unexpected failure", extra={"lens": lens, "error": str(exc)})
-                matrix[lens] = {
-                    "support_level": "none",
-                    "detected_biases": [],
-                    "query_used": "",
-                    "error": str(exc),
-                }
+                log.exception(
+                    "Lens scan unexpected failure",
+                    extra={"lens": lens, "error": str(exc)},
+                )
+                matrix[lens] = _error_result(str(exc))
 
-        log.info("Multi-lens scan complete", extra={"lens_count": len(matrix)})
+        log.info(
+            "Multi-lens scan complete",
+            extra={"lens_count": len(matrix)},
+        )
 
         return {
             "ok": True,
