@@ -4,90 +4,6 @@ import json
 import os
 import textwrap
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
-
-import pandas as pd
-import requests
-import streamlit as st
-import streamlit.components.v1 as components
-from fpdf import FPDF
-
-st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="▪")
-
-API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
-APP_TITLE = "EcoSentia"
-APP_VERSION = "v0.5.2"
-HTTP_TIMEOUT = 120
-HEALTH_TIMEOUT = 10
-
-
-class SupportLevelConfig(TypedDict):
-    pct: int
-    color: str
-    label: str
-
-
-class ThemeDict(TypedDict):
-    bg: str
-    panel: str
-    text: str
-    border: str
-    hover: str
-    icon: str
-    text_muted: str
-    shadow: str
-    tooltip_bg: str
-    tooltip_text: str
-    focus_ring: str
-    input_bg: str
-    accent: str
-    accent_soft: str
-    accent_bg: str
-    matrix_direct: str
-    matrix_moderate: str
-    matrix_limited: str
-    matrix_none: str
-    matrix_error: str
-    badge_direct: str
-    badge_moderate: str
-    badge_limited: str
-    badge_none: str
-
-
-class HistoryEntry(TypedDict):
-    time: str
-    claim: str
-    lens: str
-    support: str
-
-
-SUPPORT_LEVELS: Dict[str, SupportLevelConfig] = {
-    "none": {"pct": 5, "color": "#e58b95", "label": "None"},
-    "limited": {"pct": 30, "color": "#e7a774", "label": "Limited"},
-    "indirect": {"pct": 50, "color": "#d39a68", "label": "Indirect"},
-    "moderate": {"pct": 70, "color": "#d8b7حتماً. این هم **نسخه نهایی، یکپارچه و production-ready `app.py`** با اصلاحاتی که خواستی:
-
-## شامل این اصلاحات
-- رفع قطعی خطای PDF برای `str` / `bytes` / `bytearray`
-- حذف کامل حالت `System` و نگه داشتن فقط `Light / Dark`
-- یکدست شدن hover / focus / border با accent **رز-هلویی**
-- خوانا شدن tooltipها در هر دو حالت دارک و لایت
-- تفکیک بهتر `Checklist for AI Response`
-- رز-هلویی شدن بخش `Evidence Support Level`
-- حذف باکس‌های رنگی پیش‌فرض Streamlit
-- clean, no emoji, no Persian comments
-
----
-
-## فایل نهایی `app.py`
-
-```python
-from __future__ import annotations
-
-import json
-import os
-import textwrap
-from datetime import datetime
 from html import escape
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
 
@@ -97,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from fpdf import FPDF
 
-st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="▪")
+st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="■")
 
 API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
 APP_TITLE = "EcoSentia"
@@ -125,6 +41,9 @@ class ThemeDict(TypedDict):
     tooltip_text: str
     focus_ring: str
     input_bg: str
+    accent: str
+    accent_soft: str
+    accent_bg: str
     matrix_direct: str
     matrix_moderate: str
     matrix_limited: str
@@ -134,9 +53,6 @@ class ThemeDict(TypedDict):
     badge_moderate: str
     badge_limited: str
     badge_none: str
-    accent: str
-    accent_soft: str
-    accent_bg: str
 
 
 class HistoryEntry(TypedDict):
@@ -234,7 +150,11 @@ def html_safe(value: Any) -> str:
 def api_post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     session = get_http_session()
     try:
-        response = session.post(f"{API_BASE}{path}", json=payload, timeout=HTTP_TIMEOUT)
+        response = session.post(
+            f"{API_BASE}{path}",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+        )
         response.raise_for_status()
         data = response.json()
         if not isinstance(data, dict):
@@ -469,8 +389,10 @@ div[data-baseweb="popover"] {{
   box-shadow:0 12px 28px {theme['shadow']}!important;
 }}
 
-div[data-baseweb="popover"] ul, div[data-baseweb="popover"] [role="listbox"],
-div[data-baseweb="popover"] li, li[role="option"] {{
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] [role="listbox"],
+div[data-baseweb="popover"] li,
+li[role="option"] {{
   background:{theme['panel']}!important;
   color:{theme['text']}!important;
 }}
@@ -498,7 +420,8 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   padding:14px 16px!important;
 }}
 
-[data-testid="stExpander"] summary p, [data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
 [data-testid="stExpander"] summary div {{
   color:{theme['text']}!important;
   font-weight:600!important;
@@ -684,6 +607,7 @@ div[role="tooltip"] p, div[role="tooltip"] span {{
   border-radius:999px;
   border:1px solid {theme['accent']};
   color:{theme['accent']};
+  background:{theme['accent_bg']};
   font-size:11px;
   cursor:help;
   line-height:1;
@@ -823,14 +747,14 @@ def _js_escape(text: str) -> str:
     )
 
 
-def render_copy_button(text: str, icon_color: str, border_color: str) -> None:
+def render_copy_button(text: str, icon_color: str, border_color: str, accent_color: str) -> None:
     escaped = _js_escape(text)
     components.html(
         f"""
         <button onclick="navigator.clipboard.writeText(`{escaped}`).then(() => {{
             this.innerText = 'Copied';
-            this.style.borderColor = '{icon_color}';
-            this.style.color = '{icon_color}';
+            this.style.borderColor = '{accent_color}';
+            this.style.color = '{accent_color}';
             setTimeout(() => {{
                 this.innerText = 'Copy to Clipboard';
                 this.style.borderColor = '{border_color}';
@@ -863,11 +787,16 @@ def add_history_entry(claim: str, lens: str, support_level: str) -> None:
         st.session_state["history"] = history[:5]
 
 
-def render_sidebar(api_health: str) -> None:
+def render_sidebar(api_health: str, theme: ThemeDict) -> None:
     with st.sidebar:
         st.markdown("## Appearance")
-        is_dark = st.radio("Theme", ["Dark", "Light"], horizontal=True, index=0 if st.session_state.dark_mode else 1)
-        desired_dark = is_dark == "Dark"
+        theme_mode = st.radio(
+            "Theme",
+            ["Dark", "Light"],
+            horizontal=True,
+            index=0 if st.session_state.dark_mode else 1,
+        )
+        desired_dark = theme_mode == "Dark"
         if desired_dark != st.session_state.dark_mode:
             st.session_state.dark_mode = desired_dark
             st.rerun()
@@ -890,23 +819,20 @@ def render_sidebar(api_health: str) -> None:
         history = cast(List[HistoryEntry], st.session_state["history"])
         if history:
             for h in history:
-                bg = "#15171d" if st.session_state.dark_mode else "#ffffff"
-                br = "#e7a38f" if st.session_state.dark_mode else "#d88d7a"
-                tc = "#f4f4f5" if st.session_state.dark_mode else "#17191d"
-                tc2 = "#a7afb9" if st.session_state.dark_mode else "#6e7683"
                 st.markdown(
                     f"""
                     <div style="padding:9px 11px;margin-bottom:8px;border-radius:10px;
-                                border:1px solid {br};background:{bg};">
-                      <div style="font-size:11px;font-weight:600;color:{tc2};">
+                                border:1px solid {theme['accent']};background:{theme['panel']};">
+                      <div style="font-size:11px;font-weight:600;color:{theme['text_muted']};">
                         {html_safe(h['time'])} · {html_safe(h['lens']).title()}
                       </div>
-                      <div style="font-size:12px;margin-top:4px;color:{tc};line-height:1.45;">
+                      <div style="font-size:12px;margin-top:4px;color:{theme['text']};line-height:1.45;">
                         {html_safe(h['claim'])}
                       </div>
                       <div style="margin-top:7px;">
                         <span style="font-size:10px;padding:2px 8px;border-radius:999px;
-                                     color:{br};border:1px solid {br};">
+                                     color:{theme['accent']};border:1px solid {theme['accent']};
+                                     background:{theme['accent_bg']};">
                           {html_safe(h['support']).title()}
                         </span>
                       </div>
@@ -985,7 +911,7 @@ def generate_pdf_report(
         pdf.multi_cell(epw, line_h, wrapped)
 
     pdf.set_font("Helvetica", "B", 18)
-    pdf.cell(0, 10, pdf_safe("EcoSentia - Evidence Report"), ln=1)
+    pdf.cell(0, 10, pdf_safe("EcoSentia - Evidence Report"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(100, 116, 139)
@@ -996,19 +922,20 @@ def generate_pdf_report(
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | "
             f"Lens: {lens.title()} | Preset: {preset.upper()}"
         ),
-        ln=1,
+        new_x="LMARGIN",
+        new_y="NEXT",
     )
     pdf.set_text_color(15, 23, 42)
     pdf.ln(4)
 
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, pdf_safe("Design Claim"), ln=1)
+    pdf.cell(0, 8, pdf_safe("Design Claim"), new_x="LMARGIN", new_y="NEXT")
     safe_multi(claim)
     pdf.ln(4)
 
     if snap:
         pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 8, pdf_safe("Evidence Scan Snapshot"), ln=1)
+        pdf.cell(0, 8, pdf_safe("Evidence Scan Snapshot"), new_x="LMARGIN", new_y="NEXT")
         safe_multi(f"Total Records: {snap.get('combined_count', '—')}")
         safe_multi(f"Direct Matches: {snap.get('direct_hits', '—')}")
         safe_multi(f"Support Level: {str(snap.get('support_level', '—')).title()}")
@@ -1025,13 +952,13 @@ def generate_pdf_report(
             value = str(prompts.get(key, "") or "")
             if value:
                 pdf.set_font("Helvetica", "B", 12)
-                pdf.cell(0, 8, pdf_safe(title), ln=1)
+                pdf.cell(0, 8, pdf_safe(title), new_x="LMARGIN", new_y="NEXT")
                 safe_multi(value, font="Courier", size=8, line_h=5)
                 pdf.ln(3)
 
     if matrix:
         pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 8, pdf_safe("Multi-Lens Audit Matrix"), ln=1)
+        pdf.cell(0, 8, pdf_safe("Multi-Lens Audit Matrix"), new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 10)
 
         for lens_name, result in matrix.items():
@@ -1231,7 +1158,6 @@ def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
                 matched_terms = ensure_list(record_dict.get("matched_terms"))
                 if matched_terms:
                     st.caption(f"{meta} · Matched: {', '.join(map(str, matched_terms[:4]))}")
-
     elif top_titles:
         with st.expander("Top Retrieved Titles"):
             for title in top_titles:
@@ -1281,7 +1207,7 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
             st.caption(description)
             value = str(prompts.get(key, "") or "")
             if value:
-                render_copy_button(value, theme["accent"], theme["accent"])
+                render_copy_button(value, theme["accent"], theme["border"], theme["accent"])
                 st.code(value, language="text")
 
     look_for = ensure_list(prompts.get("look_for"))
@@ -1340,7 +1266,12 @@ def render_panel(
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("Refine Query", key=f"refine_btn_{pid}", use_container_width=True, help="Generate a refined query from the current claim."):
+        if st.button(
+            "Refine Query",
+            key=f"refine_btn_{pid}",
+            use_container_width=True,
+            help="Generate a refined query from the current claim.",
+        ):
             with st.spinner("Refining query..."):
                 try:
                     response = api_post("/evidence/refine-query", payload_base)
@@ -1351,7 +1282,12 @@ def render_panel(
                     render_note_box("Refine Query Error", str(exc), theme)
 
     with c2:
-        if st.button("Use Claim As Query", key=f"use_claim_btn_{pid}", use_container_width=True, help="Skip refinement and use the claim directly as query text."):
+        if st.button(
+            "Use Claim As Query",
+            key=f"use_claim_btn_{pid}",
+            use_container_width=True,
+            help="Skip refinement and use the current claim directly as query text.",
+        ):
             st.session_state[keys["refined_query"]] = claim_text
             st.session_state[keys["active_query"]] = claim_text
 
@@ -1375,7 +1311,12 @@ def render_panel(
     )
     st.caption("Queries the selected literature source and builds an evidence snapshot.")
 
-    if st.button("Execute Scan", key=f"scan_btn_{pid}", use_container_width=True, help="Run the main evidence scan with the active query."):
+    if st.button(
+        "Execute Scan",
+        key=f"scan_btn_{pid}",
+        use_container_width=True,
+        help="Run the main evidence scan with the active query.",
+    ):
         with st.spinner("Querying scientific literature..."):
             try:
                 response = api_post("/evidence/scan", {**payload_base, "query_text": q_text})
@@ -1413,7 +1354,12 @@ def render_panel(
     if keys["scan"] not in st.session_state:
         render_note_box("Step Incomplete", "Please complete Step 2 before generating prompts.", theme)
     else:
-        if st.button("Generate Prompts", key=f"prompts_btn_{pid}", use_container_width=True, help="Generate master, counter, uncertainty, and redesign prompts."):
+        if st.button(
+            "Generate Prompts",
+            key=f"prompts_btn_{pid}",
+            use_container_width=True,
+            help="Generate master, counter, uncertainty, and redesign prompts.",
+        ):
             with st.spinner("Generating prompts..."):
                 try:
                     scan_state = ensure_dict(st.session_state[keys["scan"]])
@@ -1444,7 +1390,12 @@ def render_panel(
     )
     st.caption("Produces a multi-lens summary suitable for export and reporting.")
 
-    if st.button("Execute Full Audit", key=f"audit_btn_{pid}", use_container_width=True, help="Run the current claim across all configured lenses."):
+    if st.button(
+        "Execute Full Audit",
+        key=f"audit_btn_{pid}",
+        use_container_width=True,
+        help="Run the current claim across all configured lenses.",
+    ):
         with st.spinner("Scanning all lenses..."):
             try:
                 response = api_post("/evidence/scan-all-lenses", payload_base)
@@ -1532,7 +1483,7 @@ def main() -> None:
     theme = get_theme(st.session_state.dark_mode)
 
     inject_css(theme)
-    render_sidebar(api_health)
+    render_sidebar(api_health, theme)
     render_header(theme)
 
     st.markdown("### Configuration")
