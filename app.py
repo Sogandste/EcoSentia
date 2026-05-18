@@ -2,22 +2,1229 @@ from __future__ import annotations
 
 import json
 import os
-import textwrap
 from datetime import datetime
 from html import escape
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
+from typing import Any, Dict, List, Tuple, TypedDict, cast
 
 import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from fpdf import FPDF
 
 st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="■")
 
 API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
 APP_TITLE = "EcoSentia"
-APP_VERSION = "v0.5.2"
+APP_VERSION = "v0.5.3"
+HTTP_TIMEOUT = int(os.getenv("ECOSENTIA_HTTP_TIMEOUT", "120"))
+HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT", "10"))
+
+
+class SupportLevelConfig(TypedDict):
+    pct: int
+    color: str
+    label: str
+
+
+class ThemeDict(TypedDict):
+    bg: str
+    panel: str
+    text: str
+    border: str
+    hover: str
+    icon: str
+    text_muted: str
+    shadow: str
+    tooltip_bg: str
+    tooltip_text: str
+    focus_ring: str
+    input_bg: str
+    accent: str
+    accent_soft: str
+    accent_bg: str
+    matrix_direct: str
+    matrix_moderate: str
+    matrix_limited: str
+    matrix_none: str
+    matrix_error: str
+    badge_direct: str
+    badge_moderate: str
+    badge_limited: str
+    badge_none: str
+
+
+class HistoryEntry(TypedDict):
+    time: str
+    claim: str
+    lens: str
+    support: str
+
+
+SUPPORT_LEVELS: Dict[str, SupportLevelConfig] = {
+    "none": {"pct": 5, "color": "#e59aa5", "label": "None"},
+    "limited": {"pct": 30, "color": "#ebb184", "label": "Limited"},
+    "indirect": {"pct": 50, "color": "#e3a377", "label": "Indirect"},
+    "moderate": {"pct": 70, "color": "#c2c9d4", "label": "Moderate"},
+    "direct": {"pct": 100, "color": "#d9dde5", "label": "Direct"},
+}
+
+DEFAULT_CLAIMS: Dict[str, str] = {
+    "Fog": (
+        "A surface structure inspired by the Namib desert beetle "
+        "for passive water collection and harvesting."
+    ),
+    "EV": (
+        "An extracellular vesicle-inspired nanoparticle for targeted "
+        "drug delivery in inflammatory disease."
+    ),
+    "Custom": (
+        "A painless transdermal drug delivery patch utilizing microneedles "
+        "that mimic the geometry and insertion mechanism of a mosquito proboscis."
+    ),
+}
+
+
+def get_http_session() -> requests.Session:
+    if "_http_session" not in st.session_state:
+        st.session_state["_http_session"] = requests.Session()
+    return cast(requests.Session, st.session_state["_http_session"])
+
+
+def ensure_session_defaults() -> None:
+    defaults: Dict[str, Any] = {
+        "dark_mode": True,
+        "compare_mode": False,
+        "history": [],
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def delete_keys(keys: List[str]) -> None:
+    for key in keys:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def safe_get(data: Any, *path: str, default: Any = None) -> Any:
+    current = data
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            return default
+        current = current[key]
+    return current
+
+
+def first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def ensure_dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def ensure_list(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
+def coerce_bias_list(value: Any) -> List[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, str) and value.strip():
+        return [value]
+    return []
+
+
+def html_safe(value: Any) -> str:
+    return escape("" if value is None else str(value))
+
+
+def api_post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    session = get_http_session()
+    try:
+        response = session.post(
+            f"{API_BASE}{path}",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Unexpected API response format at {path}: expected object.")
+        return data
+    except requests.HTTPError as exc:
+        try:
+            detail = exc.response.json()
+        except Exception:
+            detail = exc.response.text if exc.response is not None else str(exc)
+        raise RuntimeError(f"API error at {path}: {detail}") from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Connection error at {path}: {exc}") from exc
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid JSON response at {path}.") from exc
+
+
+def get_api_health() -> str:
+    if "api_health" in st.session_state:
+        return cast(str, st.session_state["api_health"])
+
+    session = get_http_session()
+    try:
+        response = session.get(f"{API_BASE}/health", timeout=HEALTH_TIMEOUT)
+        response.raise_for_status()
+        health = response.json()
+        if isinstance(health, dict):
+            message = (
+                f"API Connected · {health.get('service', 'EcoSentia API')} "
+                f"· v{health.get('version', '')}"
+            )
+        else:
+            message = f"API Connected · {API_BASE}"
+    except Exception:
+        message = f"API Not Reachable · {API_BASE}"
+
+    st.session_state["api_health"] = message
+    return message
+
+
+def extract_refined_query(response: Dict[str, Any], fallback_claim: str) -> str:
+    query = first_non_empty(
+        response.get("refined_query"),
+        response.get("query"),
+        response.get("refined"),
+        safe_get(response, "data", "refined_query"),
+        safe_get(response, "data", "query"),
+    )
+    return str(query) if query else fallback_claim
+
+
+def extract_scan_payload(response: Dict[str, Any], fallback_query: str) -> Tuple[Dict[str, Any], str]:
+    snapshot = first_non_empty(
+        response.get("snapshot"),
+        safe_get(response, "data", "snapshot"),
+        safe_get(response, "results", "snapshot"),
+    )
+    query_text = first_non_empty(
+        response.get("query_text"),
+        response.get("query"),
+        safe_get(response, "data", "query_text"),
+        safe_get(response, "results", "query_text"),
+        fallback_query,
+    )
+    return ensure_dict(snapshot), str(query_text)
+
+
+def extract_prompts_payload(response: Dict[str, Any]) -> Dict[str, Any]:
+    prompts = first_non_empty(
+        response.get("prompts"),
+        safe_get(response, "data", "prompts"),
+        response if "master_prompt" in response else None,
+    )
+    return ensure_dict(prompts)
+
+
+def extract_lens_matrix(response: Dict[str, Any]) -> Dict[str, Any]:
+    matrix = first_non_empty(
+        response.get("lens_matrix"),
+        response.get("matrix"),
+        safe_get(response, "data", "lens_matrix"),
+        safe_get(response, "results", "lens_matrix"),
+    )
+    return ensure_dict(matrix)
+
+
+def get_theme(dark_mode: bool) -> ThemeDict:
+    if dark_mode:
+        return {
+            "bg": "#0b0c10",
+            "panel": "#15171d",
+            "text": "#f4f4f5",
+            "border": "#2b2f38",
+            "hover": "#1a1d24",
+            "icon": "#f4f4f5",
+            "text_muted": "#a7afb9",
+            "shadow": "rgba(0,0,0,0.34)",
+            "tooltip_bg": "#232730",
+            "tooltip_text": "#fafafa",
+            "focus_ring": "rgba(231,163,143,0.22)",
+            "input_bg": "#11141a",
+            "accent": "#e7a38f",
+            "accent_soft": "#e7a0ab",
+            "accent_bg": "rgba(231,163,143,0.12)",
+            "matrix_direct": "rgba(217,221,229,0.10)",
+            "matrix_moderate": "rgba(194,201,212,0.12)",
+            "matrix_limited": "rgba(235,177,132,0.12)",
+            "matrix_none": "rgba(229,154,165,0.12)",
+            "matrix_error": "rgba(229,154,165,0.05)",
+            "badge_direct": "#d9dde5",
+            "badge_moderate": "#c2c9d4",
+            "badge_limited": "#ebb184",
+            "badge_none": "#e59aa5",
+        }
+
+    return {
+        "bg": "#f7f7f8",
+        "panel": "#ffffff",
+        "text": "#17191d",
+        "border": "#e5e7eb",
+        "hover": "#f3f4f6",
+        "icon": "#17191d",
+        "text_muted": "#6e7683",
+        "shadow": "rgba(23,25,29,0.06)",
+        "tooltip_bg": "#17191d",
+        "tooltip_text": "#f9fafb",
+        "focus_ring": "rgba(216,141,122,0.18)",
+        "input_bg": "#ffffff",
+        "accent": "#d88d7a",
+        "accent_soft": "#cf8695",
+        "accent_bg": "rgba(216,141,122,0.10)",
+        "matrix_direct": "rgba(125,138,157,0.08)",
+        "matrix_moderate": "rgba(156,165,177,0.10)",
+        "matrix_limited": "rgba(216,141,122,0.10)",
+        "matrix_none": "rgba(207,134,149,0.10)",
+        "matrix_error": "rgba(207,134,149,0.05)",
+        "badge_direct": "#627084",
+        "badge_moderate": "#798392",
+        "badge_limited": "#c97f6d",
+        "badge_none": "#bf7282",
+    }
+
+
+def inject_css(theme: ThemeDict) -> None:
+    st.markdown(
+        f"""
+<style>
+:root {{
+  --text-color:{theme['text']}!important;
+  --background-color:{theme['bg']}!important;
+  --secondary-background-color:{theme['panel']}!important;
+  --primary-color:{theme['accent']}!important;
+}}
+
+html, body, #root, .stApp, [data-testid="stAppViewContainer"],
+[data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+  background:{theme['bg']}!important;
+  color:{theme['text']}!important;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif!important;
+}}
+
+.stMarkdown p, .stMarkdown span, .stMarkdown li, .stMarkdown h1,
+.stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5,
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, label {{
+  color:{theme['text']}!important;
+}}
+
+[data-testid="stCaptionContainer"] p, .stCaption p, small {{
+  color:{theme['text_muted']}!important;
+}}
+
+hr {{
+  border-top:1px solid {theme['border']}!important;
+  opacity:1!important;
+}}
+
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div {{
+  background:{theme['panel']}!important;
+  border-right:1px solid {theme['border']}!important;
+}}
+
+[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] button, [data-testid="stSidebarCollapseButton"] button,
+button[data-testid="baseButton-headerNoPadding"], button[kind="headerNoPadding"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:8px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  opacity:1!important;
+  visibility:visible!important;
+}}
+
+[data-testid="collapsedControl"] svg, [data-testid="stSidebarCollapseButton"] svg,
+button[data-testid="baseButton-headerNoPadding"] svg, button[kind="headerNoPadding"] svg {{
+  fill:{theme['icon']}!important;
+  stroke:{theme['icon']}!important;
+  color:{theme['icon']}!important;
+}}
+
+input[type="text"], input[type="number"], input[type="search"], textarea,
+div[data-baseweb="select"] > div {{
+  background:{theme['input_bg']}!important;
+  color:{theme['text']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:10px!important;
+  transition:all .16s ease!important;
+}}
+
+input::placeholder, textarea::placeholder {{
+  color:{theme['text_muted']}!important;
+  opacity:.78!important;
+}}
+
+input:hover, textarea:hover, input:focus, textarea:focus,
+input:focus-visible, textarea:focus-visible,
+div[data-baseweb="select"] > div:hover,
+div[data-baseweb="select"] > div:focus-within {{
+  border-color:{theme['accent']}!important;
+  box-shadow:0 0 0 3px {theme['focus_ring']}!important;
+  outline:none!important;
+}}
+
+div[data-baseweb="select"] svg {{
+  fill:{theme['icon']}!important;
+  color:{theme['icon']}!important;
+}}
+
+div[data-baseweb="popover"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:10px!important;
+  box-shadow:0 12px 28px {theme['shadow']}!important;
+}}
+
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] [role="listbox"],
+div[data-baseweb="popover"] li,
+li[role="option"] {{
+  background:{theme['panel']}!important;
+  color:{theme['text']}!important;
+}}
+
+li[role="option"]:hover, li[aria-selected="true"] {{
+  background:{theme['hover']}!important;
+}}
+
+[data-testid="stExpander"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:12px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  overflow:hidden!important;
+  margin-bottom:12px!important;
+  transition:all .18s ease!important;
+}}
+
+[data-testid="stExpander"]:hover {{
+  border-color:{theme['accent']}!important;
+}}
+
+[data-testid="stExpander"] summary {{
+  background:{theme['panel']}!important;
+  padding:14px 16px!important;
+}}
+
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary div {{
+  color:{theme['text']}!important;
+  font-weight:600!important;
+}}
+
+[data-testid="stExpander"] > div > div {{
+  background:{theme['bg']}!important;
+  padding:16px!important;
+}}
+
+[data-testid="metric-container"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:12px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  transition:all .18s ease!important;
+}}
+
+[data-testid="metric-container"]:hover {{
+  border-color:{theme['accent']}!important;
+  box-shadow:0 0 0 2px {theme['accent_bg']}!important;
+}}
+
+[data-testid="stMetricValue"] > div {{
+  color:{theme['text']}!important;
+  font-weight:700!important;
+}}
+
+[data-testid="stMetricLabel"] > div {{
+  color:{theme['text_muted']}!important;
+}}
+
+.stButton > button, [data-testid="stDownloadButton"] > button {{
+  background:{theme['accent_bg']}!important;
+  color:{theme['accent']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:10px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  transition:all .18s ease!important;
+  font-weight:600!important;
+}}
+
+.stButton > button:hover, [data-testid="stDownloadButton"] > button:hover,
+.stButton > button:focus, [data-testid="stDownloadButton"] > button:focus,
+.stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
+  background:{theme['accent']}!important;
+  color:#ffffff!important;
+  border-color:{theme['accent']}!important;
+  box-shadow:0 0 0 3px {theme['focus_ring']}!important;
+  outline:none!important;
+}}
+
+.stCodeBlock {{
+  background:{theme['bg']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:10px!important;
+}}
+
+.stCodeBlock pre, .stCodeBlock code, .stCodeBlock span {{
+  color:{theme['text']}!important;
+}}
+
+.note-box {{
+  background:{theme['panel']};
+  border:1px solid {theme['border']};
+  border-left:3px solid {theme['accent']};
+  border-radius:12px;
+  padding:12px 14px;
+  margin:8px 0 16px 0;
+}}
+
+.note-title {{
+  color:{theme['accent']};
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.45px;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}}
+
+.note-body {{
+  color:{theme['text_muted']};
+  line-height:1.65;
+  font-size:13px;
+}}
+
+.risk-panel {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-left:3px solid {theme['accent_soft']}!important;
+  border-radius:10px!important;
+  padding:12px 14px!important;
+  margin-bottom:10px!important;
+  line-height:1.65!important;
+}}
+
+.risk-title {{
+  color:{theme['accent']}!important;
+  font-weight:700!important;
+  margin-bottom:5px!important;
+  display:block!important;
+  font-size:12px!important;
+  text-transform:uppercase!important;
+  letter-spacing:.45px!important;
+}}
+
+.matrix-table {{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  border:1px solid {theme['accent']}33;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 2px 8px {theme['shadow']};
+}}
+
+.matrix-table thead tr {{
+  background:{theme['hover']};
+}}
+
+.matrix-table thead th {{
+  padding:11px 16px;
+  text-align:left;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+  color:{theme['text_muted']}!important;
+}}
+
+.matrix-table tbody td {{
+  padding:12px 16px;
+  color:{theme['text']}!important;
+  background:{theme['panel']};
+  border-top:1px solid {theme['border']};
+}}
+
+.badge {{
+  display:inline-block;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.35px;
+  text-transform:uppercase;
+  background:{theme['accent_bg']}!important;
+  color:{theme['accent']}!important;
+  border:1px solid {theme['accent']}!important;
+}}
+
+.checklist-box {{
+  background:{theme['panel']};
+  border:1px solid {theme['accent']};
+  border-radius:12px;
+  padding:14px 16px;
+  margin-top:10px;
+  margin-bottom:14px;
+}}
+
+.checklist-title {{
+  color:{theme['accent']};
+  font-size:12px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  margin-bottom:10px;
+}}
+
+.checklist-box ul {{
+  margin:0;
+  padding-left:18px;
+}}
+
+.checklist-box li {{
+  margin:0 0 8px 0;
+  color:{theme['text']};
+  line-height:1.6;
+}}
+
+::-webkit-scrollbar {{
+  width:7px;
+}}
+
+::-webkit-scrollbar-track {{
+  background:{theme['bg']};
+}}
+
+::-webkit-scrollbar-thumb {{
+  background:{theme['border']};
+  border-radius:999px;
+}}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header(theme: ThemeDict) -> None:
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;margin-top:8px;">
+          <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="{theme['text']}" stroke-width="2" opacity="0.15"/>
+            <path d="M50 85 C80 80, 85 45, 50 15 C65 40, 65 65, 50 85 Z"
+                  fill="none" stroke="{theme['text']}" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="50" y1="35" x2="50" y2="85"
+                  stroke="{theme['text']}" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+            <path d="M30 25 L70 25 L60 35 L40 35 Z"
+                  fill="none" stroke="{theme['text']}" stroke-width="2.5" opacity="0.8"/>
+          </svg>
+          <div>
+            <div style="font-size:22px;font-weight:600;letter-spacing:.4px;color:{theme['text']};line-height:1.15;">
+              {APP_TITLE}
+            </div>
+            <div style="font-size:11px;letter-spacing:1px;color:{theme['text_muted']};
+                        margin-top:4px;text-transform:uppercase;font-weight:500;">
+              Evidence and Interrogation Layer {APP_VERSION}
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_note_box(title: str, body: str, theme: ThemeDict) -> None:
+    st.markdown(
+        f"""
+        <div class="note-box">
+          <div class="note-title">{html_safe(title)}</div>
+          <div class="note-body">{html_safe(body)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_support_bar_html(level: str, text_color: str, border_color: str, accent_color: str) -> str:
+    cfg = SUPPORT_LEVELS.get(level.lower(), {"pct": 0, "color": accent_color, "label": level.title()})
+    return f"""
+    <div style="margin:14px 0 10px 0;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:7px;
+                  font-size:11px;font-weight:700;color:{accent_color};
+                  letter-spacing:.6px;text-transform:uppercase;opacity:.95;">
+        <span>Evidence Support Level</span>
+        <span style="color:{accent_color};">{html_safe(cfg['label'])}</span>
+      </div>
+      <div style="width:100%;height:5px;background:{border_color};
+                  border-radius:999px;overflow:hidden;">
+        <div style="width:{cfg['pct']}%;height:100%;background:{accent_color};
+                    border-radius:999px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px;
+                  font-size:10px;color:{text_color};opacity:.45;">
+        <span>None</span><span>Limited</span><span>Indirect</span><span>Moderate</span><span>Direct</span>
+      </div>
+    </div>
+    """
+
+
+def _js_escape(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace("`", "\\`")
+        .replace("\n", "\\n")
+        .replace("\r", "")
+        .replace("</", "<\\/")
+        .replace('"', '\\"')
+    )
+
+
+def render_copy_button(text: str, icon_color: str, border_color: str, accent_color: str) -> None:
+    escaped = _js_escape(text)
+    components.html(
+        f"""
+        <button onclick="navigator.clipboard.writeText(`{escaped}`).then(() => {{
+            this.innerText = 'Copied';
+            this.style.borderColor = '{accent_color}';
+            this.style.color = '#ffffff';
+            this.style.background = '{accent_color}';
+            setTimeout(() => {{
+                this.innerText = 'Copy to Clipboard';
+                this.style.borderColor = '{border_color}';
+                this.style.color = '{icon_color}';
+                this.style.background = 'transparent';
+            }}, 1600);
+        }})"
+        style="background:transparent;border:1px solid {border_color};color:{icon_color};
+               border-radius:8px;padding:6px 14px;font-size:12px;
+               font-family:Inter,-apple-system,sans-serif;cursor:pointer;
+               transition:all .2s;margin-bottom:8px;">
+        Copy toحتماً. این هم **نسخه یکجای اصلاح‌شده `app.py`** با خواسته‌های جدیدت:
+
+## اعمال شده:
+- `Theme` به‌صورت **کشویی**
+- فقط:
+  - `Dark`
+  - `Light`
+- **System mode حذف شده**
+- **tooltip های stepها حذف شده**
+- دکمه‌ها با استایل **رز-هلویی شیک‌تر**
+- باکس‌ها، badgeها، matrix و support bar با accent هماهنگ
+- **PDF کاملاً حذف شده**
+- فقط خروجی:
+  - CSV
+  - JSON
+- بدون کامنت فارسی
+- بدون ایموجی
+
+فقط این فایل را کامل جایگزین `app.py` کن:
+
+```python
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime
+from html import escape
+from typing import Any, Dict, List, Tuple, TypedDict, cast
+
+import pandas as pd
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="■")
+
+API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
+APP_TITLE = "EcoSentia"
+APP_VERSION = "v0.5.3"
+HTTP_TIMEOUT = int(os.getenv("ECOSENTIA_HTTP_TIMEOUT", "120"))
+HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT", "10"))
+
+
+class SupportLevelConfig(TypedDict):
+    pct: int
+    color: str
+    label: str
+
+
+class ThemeDict(TypedDict):
+    bg: str
+    panel: str
+    text: str
+    border: str
+    hover: str
+    icon: str
+    text_muted: str
+    shadow: str
+    tooltip_bg: str
+    tooltip_text: str
+    focus_ring: str
+    input_bg: str
+    accent: str
+    accent_soft: str
+    accent_bg: str
+    matrix_direct: str
+    matrix_moderate: str
+    matrix_limited: str
+    matrix_none: str
+    matrix_error: str
+    badge_direct: str
+    badge_moderate: str
+    badge_limited: str
+    badge_none: str
+
+
+class HistoryEntry(TypedDict):
+    time: str
+    claim: str
+    lens: str
+    support: str
+
+
+SUPPORT_LEVELS: Dict[str, SupportLevelConfig] = {
+    "none": {"pct": 5, "color": "#e59aa5", "label": "None"},
+    "limited": {"pct": 30, "color": "#ebb184", "label": "Limited"},
+    "indirect": {"pct": 50, "color": "#e3a377", "label": "Indirect"},
+    "moderate": {"pct": 70, "color": "#c2c9d4", "label": "Moderate"},
+    "direct": {"pct": 100, "color": "#d9dde5", "label": "Direct"},
+}
+
+DEFAULT_CLAIMS: Dict[str, str] = {
+    "Fog": (
+        "A surface structure inspired by the Namib desert beetle "
+        "for passive water collection and harvesting."
+    ),
+    "EV": (
+        "An extracellular vesicle-inspired nanoparticle for targeted "
+        "drug delivery in inflammatory disease."
+    ),
+    "Custom": (
+        "A painless transdermal drug delivery patch utilizing microneedles "
+        "that mimic the geometry and insertion mechanism of a mosquito proboscis."
+    ),
+}
+
+
+def get_http_session() -> requests.Session:
+    if "_http_session" not in st.session_state:
+        st.session_state["_http_session"] = requests.Session()
+    return cast(requests.Session, st.session_state["_http_session"])
+
+
+def ensure_session_defaults() -> None:
+    defaults: Dict[str, Any] = {
+        "dark_mode": True,
+        "compare_mode": False,
+        "history": [],
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def delete_keys(keys: List[str]) -> None:
+    for key in keys:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def safe_get(data: Any, *path: str, default: Any = None) -> Any:
+    current = data
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            return default
+        current = current[key]
+    return current
+
+
+def first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def ensure_dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def ensure_list(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
+def coerce_bias_list(value: Any) -> List[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, str) and value.strip():
+        return [value]
+    return []
+
+
+def html_safe(value: Any) -> str:
+    return escape("" if value is None else str(value))
+
+
+def api_post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    session = get_http_session()
+    try:
+        response = session.post(
+            f"{API_BASE}{path}",
+            json=payload,
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Unexpected API response format at {path}: expected object.")
+        return data
+    except requests.HTTPError as exc:
+        try:
+            detail = exc.response.json()
+        except Exception:
+            detail = exc.response.text if exc.response is not None else str(exc)
+        raise RuntimeError(f"API error at {path}: {detail}") from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Connection error at {path}: {exc}") from exc
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid JSON response at {path}.") from exc
+
+
+def get_api_health() -> str:
+    if "api_health" in st.session_state:
+        return cast(str, st.session_state["api_health"])
+
+    session = get_http_session()
+    try:
+        response = session.get(f"{API_BASE}/health", timeout=HEALTH_TIMEOUT)
+        response.raise_for_status()
+        health = response.json()
+        if isinstance(health, dict):
+            message = (
+                f"API Connected · {health.get('service', 'EcoSentia API')} "
+                f"· v{health.get('version', '')}"
+            )
+        else:
+            message = f"API Connected · {API_BASE}"
+    except Exception:
+        message = f"API Not Reachable · {API_BASE}"
+
+    st.session_state["api_health"] = message
+    return message
+
+
+def extract_refined_query(response: Dict[str, Any], fallback_claim: str) -> str:
+    query = first_non_empty(
+        response.get("refined_query"),
+        response.get("query"),
+        response.get("refined"),
+        safe_get(response, "data", "refined_query"),
+        safe_get(response, "data", "query"),
+    )
+    return str(query) if query else fallback_claim
+
+
+def extract_scan_payload(response: Dict[str, Any], fallback_query: str) -> Tuple[Dict[str, Any], str]:
+    snapshot = first_non_empty(
+        response.get("snapshot"),
+        safe_get(response, "data", "snapshot"),
+        safe_get(response, "results", "snapshot"),
+    )
+    query_text = first_non_empty(
+        response.get("query_text"),
+        response.get("query"),
+        safe_get(response, "data", "query_text"),
+        safe_get(response, "results", "query_text"),
+        fallback_query,
+    )
+    return ensure_dict(snapshot), str(query_text)
+
+
+def extract_prompts_payload(response: Dict[str, Any]) -> Dict[str, Any]:
+    prompts = first_non_empty(
+        response.get("prompts"),
+        safe_get(response, "data", "prompts"),
+        response if "master_prompt" in response else None,
+    )
+    return ensure_dict(prompts)
+
+
+def extract_lens_matrix(response: Dict[str, Any]) -> Dict[str, Any]:
+    matrix = first_non_empty(
+        response.get("lens_matrix"),
+        response.get("matrix"),
+        safe_get(response, "data", "lens_matrix"),
+        safe_get(response, "results", "lens_matrix"),
+    )
+    return ensure_dict(matrix)
+
+
+def get_theme(dark_mode: bool) -> ThemeDict:
+    if dark_mode:
+        return {
+            "bg": "#0b0c10",
+            "panel": "#15171d",
+            "text": "#f4f4f5",
+            "border": "#2b2f38",
+            "hover": "#1a1d24",
+            "icon": "#f4f4f5",
+            "text_muted": "#a7afb9",
+            "shadow": "rgba(0,0,0,0.34)",
+            "tooltip_bg": "#232730",
+            "tooltip_text": "#fafafa",
+            "focus_ring": "rgba(231,163,143,0.22)",
+            "input_bg": "#11141a",
+            "accent": "#e7a38f",
+            "accent_soft": "#e7a0ab",
+            "accent_bg": "rgba(231,163,143,0.12)",
+            "matrix_direct": "rgba(217,221,229,0.10)",
+            "matrix_moderate": "rgba(194,201,212,0.12)",
+            "matrix_limited": "rgba(235,177,132,0.12)",
+            "matrix_none": "rgba(229,154,165,0.12)",
+            "matrix_error": "rgba(229,154,165,0.05)",
+            "badge_direct": "#d9dde5",
+            "badge_moderate": "#c2c9d4",
+            "badge_limited": "#ebb184",
+            "badge_none": "#e59aa5",
+        }
+
+    return {
+        "bg": "#f7f7f8",
+        "panel": "#ffffff",
+        "text": "#17191d",
+        "border": "#e5e7eb",
+        "hover": "#f3f4f6",
+        "icon": "#17191d",
+        "text_muted": "#6e7683",
+        "shadow": "rgba(23,25,29,0.06)",
+        "tooltip_bg": "#17191d",
+        "tooltip_text": "#f9fafb",
+        "focus_ring": "rgba(216,141,122,0.18)",
+        "input_bg": "#ffffff",
+        "accent": "#d88d7a",
+        "accent_soft": "#cf8695",
+        "accent_bg": "rgba(216,141,122,0.10)",
+        "matrix_direct": "rgba(125,138,157,0.08)",
+        "matrix_moderate": "rgba(156,165,177,0.10)",
+        "matrix_limited": "rgba(216,141,122,0.10)",
+        "matrix_none": "rgba(207,134,149,0.10)",
+        "matrix_error": "rgba(207,134,149,0.05)",
+        "badge_direct": "#627084",
+        "badge_moderate": "#798392",
+        "badge_limited": "#c97f6d",
+        "badge_none": "#bf7282",
+    }
+
+
+def inject_css(theme: ThemeDict) -> None:
+    st.markdown(
+        f"""
+<style>
+:root {{
+  --text-color:{theme['text']}!important;
+  --background-color:{theme['bg']}!important;
+  --secondary-background-color:{theme['panel']}!important;
+  --primary-color:{theme['accent']}!important;
+}}
+
+html, body, #root, .stApp, [data-testid="stAppViewContainer"],
+[data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+  background:{theme['bg']}!important;
+  color:{theme['text']}!important;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif!important;
+}}
+
+.stMarkdown p, .stMarkdown span, .stMarkdown li, .stMarkdown h1,
+.stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5,
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, label {{
+  color:{theme['text']}!important;
+}}
+
+[data-testid="stCaptionContainer"] p, .stCaption p, small {{
+  color:{theme['text_muted']}!important;
+}}
+
+hr {{
+  border-top:1px solid {theme['border']}!important;
+  opacity:1!important;
+}}
+
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div {{
+  background:{theme['panel']}!important;
+  border-right:1px solid {theme['border']}!important;
+}}
+
+[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] button, [data-testid="stSidebarCollapseButton"] button,
+button[data-testid="baseButton-headerNoPadding"], button[kind="headerNoPadding"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:8px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  opacity:1!important;
+  visibility:visible!important;
+}}
+
+[data-testid="collapsedControl"] svg, [data-testid="stSidebarCollapseButton"] svg,
+button[data-testid="baseButton-headerNoPadding"] svg, button[kind="headerNoPadding"] svg {{
+  fill:{theme['icon']}!important;
+  stroke:{theme['icon']}!important;
+  color:{theme['icon']}!important;
+}}
+
+input[type="text"], input[type="number"], input[type="search"], textarea,
+div[data-baseweb="select"] > div {{
+  background:{theme['input_bg']}!important;
+  color:{theme['text']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:10px!important;
+  transition:all .16s ease!important;
+}}
+
+input::placeholder, textarea::placeholder {{
+  color:{theme['text_muted']}!important;
+  opacity:.78!important;
+}}
+
+input:hover, textarea:hover, input:focus, textarea:focus,
+input:focus-visible, textarea:focus-visible,
+div[data-baseweb="select"] > div:hover,
+div[data-baseweb="select"] > div:focus-within {{
+  border-color:{theme['accent']}!important;
+  box-shadow:0 0 0 3px {theme['focus_ring']}!important;
+  outline:none!important;
+}}
+
+div[data-baseweb="select"] svg {{
+  fill:{theme['icon']}!important;
+  color:{theme['icon']}!important;
+}}
+
+div[data-baseweb="popover"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:10px!important;
+  box-shadow:0 12px 28px {theme['shadow']}!important;
+}}
+
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] [role="listbox"],
+div[data-baseweb="popover"] li,
+li[role="option"] {{
+  background:{theme['panel']}!important;
+  color:{theme['text']}!important;
+}}
+
+li[role="option"]:hover, li[aria-selected="true"] {{
+  background:{theme['hover']}!important;
+}}
+
+[data-testid="stExpander"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['border']}!important;
+  border-radius:12px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  overflow:hidden!important;
+  margin-bottom:12px!important;
+  transition:all .18s ease!important;
+}}
+
+[data-testid="stExpander"]:hover {{
+  border-color:{theme['accent']}!important;
+}}
+
+[data-testid="stExpander"] summary {{
+  background:{theme['panel']}!important;
+  padding:14px 16px!important;
+}}
+
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary div {{
+  color:{theme['text']}!important;
+  font-weight:600!important;
+}}
+
+[data-testid="stExpander"] > div > div {{
+  background:{theme['bg']}!important;
+  padding:16px!important;
+}}
+
+[data-testid="metric-container"] {{
+  background:{theme['panel']}!important;
+  border:1px solid {theme['accent']}!important;
+  border-radius:12px!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
+  transition:all .18s ease!important;
+}}
+
+[data-testid="metric-container"]:hover {{
+  border-color:{theme['accent']}!important;
+  box-shadow:0 0 0 2px {theme['accent_bg']}!important;
+}}
+
+[data-testid="stMetricValue"] > div {{
+  color:{theme['text']}!important;
+  font-weight:700!important;
+}}
+
+[data-testid="stMetricLabel"] > div {{
+  color:{theme['text_muted']}!important;
+}}
+
+[data-testid="stTooltipContent"], div[role="tooltip"] {{
+  background:{theme['tooltip_bg']}!important;
+  color:{theme['tooltip_text']}!important;
+  border:1px solid {theme['accent']}حتماً. اگر PDF هم فعلاً کنار گذاشته شود، اسکریپت خیلی تمیزتر، پایدارتر و production-friendlyتر می‌شود.
+
+پایین **نسخه یکپارچه و اصلاح‌شده `app.py`** را می‌دهم با این تغییرها:
+
+- حذف کامل PDF generation
+- حذف کامل tooltip های stepها
+- Theme به‌صورت **کشویی**
+- فقط `Dark` و `Light`
+- حذف کامل `System`
+- دکمه‌ها با استایل **رز-هلویی**
+- hover/focus یکدست و شیک
+- `Evidence Support Level` با accent رز-هلویی
+- `Checklist for AI Response` تفکیک‌شده
+- بدون کامنت فارسی
+- بدون ایموجی
+
+فقط این فایل را کامل جایگزین `app.py` کن:
+
+```python
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime
+from html import escape
+from typing import Any, Dict, List, Tuple, TypedDict, cast
+
+import pandas as pd
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="■")
+
+API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
+APP_TITLE = "EcoSentia"
+APP_VERSION = "v0.5.3"
 HTTP_TIMEOUT = int(os.getenv("ECOSENTIA_HTTP_TIMEOUT", "120"))
 HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT", "10"))
 
@@ -455,11 +1662,11 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 }}
 
 .stButton > button, [data-testid="stDownloadButton"] > button {{
-  background:{theme['panel']}!important;
-  color:{theme['text']}!important;
-  border:1px solid {theme['border']}!important;
+  background:{theme['accent_bg']}!important;
+  color:{theme['accent']}!important;
+  border:1px solid {theme['accent']}!important;
   border-radius:10px!important;
-  box-shadow:0 1px 4px {theme['shadow']}!important;
+  box-shadow:0 2px 8px {theme['shadow']}!important;
   transition:all .18s ease!important;
   font-weight:600!important;
 }}
@@ -467,9 +1674,10 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover,
 .stButton > button:focus, [data-testid="stDownloadButton"] > button:focus,
 .stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
+  background:{theme['accent']}!important;
+  color:#ffffff!important;
   border-color:{theme['accent']}!important;
   box-shadow:0 0 0 3px {theme['focus_ring']}!important;
-  color:{theme['text']}!important;
   outline:none!important;
 }}
 
@@ -585,35 +1793,6 @@ div[role="tooltip"] p, div[role="tooltip"] span {{
   border:1px solid {theme['accent']}!important;
 }}
 
-.step-title-wrap {{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin:8px 0 4px 0;
-}}
-
-.step-title-text {{
-  font-size:1.06rem;
-  font-weight:700;
-  color:{theme['text']};
-}}
-
-.step-tooltip-dot {{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:18px;
-  height:18px;
-  border-radius:999px;
-  border:1px solid {theme['accent']};
-  color:{theme['accent']};
-  background:{theme['accent_bg']};
-  font-size:11px;
-  cursor:help;
-  line-height:1;
-  user-select:none;
-}}
-
 .checklist-box {{
   background:{theme['panel']};
   border:1px solid {theme['accent']};
@@ -701,18 +1880,6 @@ def render_note_box(title: str, body: str, theme: ThemeDict) -> None:
     )
 
 
-def step_title(title: str, tooltip: str, theme: ThemeDict) -> None:
-    st.markdown(
-        f"""
-        <div class="step-title-wrap">
-          <div class="step-title-text">{html_safe(title)}</div>
-          <span class="step-tooltip-dot" title="{html_safe(tooltip)}">i</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_support_bar_html(level: str, text_color: str, border_color: str, accent_color: str) -> str:
     cfg = SUPPORT_LEVELS.get(level.lower(), {"pct": 0, "color": accent_color, "label": level.title()})
     return f"""
@@ -790,10 +1957,9 @@ def add_history_entry(claim: str, lens: str, support_level: str) -> None:
 def render_sidebar(api_health: str, theme: ThemeDict) -> None:
     with st.sidebar:
         st.markdown("## Appearance")
-        theme_mode = st.radio(
+        theme_mode = st.selectbox(
             "Theme",
             ["Dark", "Light"],
-            horizontal=True,
             index=0 if st.session_state.dark_mode else 1,
         )
         desired_dark = theme_mode == "Dark"
@@ -850,147 +2016,6 @@ def render_sidebar(api_health: str, theme: ThemeDict) -> None:
             "literature, surfaces translation risks, and generates evidence-aware prompts."
         )
         st.caption(api_health)
-
-
-def pdf_safe(text: Any) -> str:
-    if text is None:
-        return ""
-
-    replacements = {
-        "\u2014": "-",
-        "\u2013": "-",
-        "\u201c": '"',
-        "\u201d": '"',
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u2022": "-",
-        "\u2026": "...",
-        "\u00a0": " ",
-    }
-    s = str(text)
-    for bad, good in replacements.items():
-        s = s.replace(bad, good)
-    return s.encode("latin-1", errors="replace").decode("latin-1")
-
-
-def _wrap_for_pdf(text: str, width: int = 95) -> str:
-    safe = pdf_safe(text)
-    lines: List[str] = []
-    raw_lines = safe.splitlines() or [safe]
-    for raw_line in raw_lines:
-        if not raw_line.strip():
-            lines.append("")
-            continue
-        lines.append(
-            textwrap.fill(
-                raw_line,
-                width=width,
-                break_long_words=True,
-                break_on_hyphens=True,
-            )
-        )
-    return "\n".join(lines)
-
-
-def generate_pdf_report(
-    claim: str,
-    lens: str,
-    preset: str,
-    snap: Optional[Dict[str, Any]],
-    prompts: Optional[Dict[str, Any]],
-    matrix: Optional[Dict[str, Any]],
-) -> bytes:
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    epw = pdf.w - pdf.l_margin - pdf.r_margin
-
-    def safe_multi(text: str, font: str = "Helvetica", style: str = "", size: int = 10, line_h: int = 6) -> None:
-        pdf.set_font(font, style, size)
-        wrapped = _wrap_for_pdf(text, width=95)
-        pdf.multi_cell(epw, line_h, wrapped)
-
-    pdf.set_font("Helvetica", "B", 18)
-    pdf.cell(0, 10, pdf_safe("EcoSentia - Evidence Report"), new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(
-        0,
-        6,
-        pdf_safe(
-            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | "
-            f"Lens: {lens.title()} | Preset: {preset.upper()}"
-        ),
-        new_x="LMARGIN",
-        new_y="NEXT",
-    )
-    pdf.set_text_color(15, 23, 42)
-    pdf.ln(4)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, pdf_safe("Design Claim"), new_x="LMARGIN", new_y="NEXT")
-    safe_multi(claim)
-    pdf.ln(4)
-
-    if snap:
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 8, pdf_safe("Evidence Scan Snapshot"), new_x="LMARGIN", new_y="NEXT")
-        safe_multi(f"Total Records: {snap.get('combined_count', '—')}")
-        safe_multi(f"Direct Matches: {snap.get('direct_hits', '—')}")
-        safe_multi(f"Support Level: {str(snap.get('support_level', '—')).title()}")
-        safe_multi(f"Summary: {snap.get('summary', '')}")
-        pdf.ln(4)
-
-    if prompts:
-        for title, key in [
-            ("Master Prompt", "master_prompt"),
-            ("Counter Prompt", "counter_prompt"),
-            ("Uncertainty Mapping", "uncertainty_prompt"),
-            ("Redesign Prompt", "redesign_prompt"),
-        ]:
-            value = str(prompts.get(key, "") or "")
-            if value:
-                pdf.set_font("Helvetica", "B", 12)
-                pdf.cell(0, 8, pdf_safe(title), new_x="LMARGIN", new_y="NEXT")
-                safe_multi(value, font="Courier", size=8, line_h=5)
-                pdf.ln(3)
-
-    if matrix:
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 8, pdf_safe("Multi-Lens Audit Matrix"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 10)
-
-        for lens_name, result in matrix.items():
-            result_dict = ensure_dict(result)
-            if result_dict.get("error"):
-                line = f"{lens_name.title()}: Error - {result_dict['error']}"
-            else:
-                biases = coerce_bias_list(result_dict.get("detected_biases"))
-                risk_str = (
-                    ", ".join(
-                        b.get("bias", "") if isinstance(b, dict) else str(b)
-                        for b in biases
-                    )
-                    if biases
-                    else "None"
-                )
-                line = (
-                    f"{lens_name.title()}: "
-                    f"{str(result_dict.get('support_level', 'none')).title()} | "
-                    f"Risks: {risk_str}"
-                )
-            safe_multi(line)
-
-    raw = pdf.output(dest="S")
-
-    if isinstance(raw, bytearray):
-        return bytes(raw)
-    if isinstance(raw, bytes):
-        return raw
-    if isinstance(raw, str):
-        return raw.encode("latin-1", errors="replace")
-    return bytes(raw)
 
 
 def build_base_payload(
@@ -1097,7 +2122,6 @@ def invalidate_panel_state(pid: str, claim_text: str) -> Dict[str, str]:
         "prompts": f"prompts_{pid}",
         "matrix": f"lens_matrix_{pid}",
         "claim_cache": f"claim_cache_{pid}",
-        "pdf_cache": f"pdf_cache_{pid}",
     }
 
     if st.session_state.get(keys["claim_cache"]) != claim_text:
@@ -1109,7 +2133,6 @@ def invalidate_panel_state(pid: str, claim_text: str) -> Dict[str, str]:
                 keys["scan"],
                 keys["prompts"],
                 keys["matrix"],
-                keys["pdf_cache"],
             ]
         )
     return keys
@@ -1257,11 +2280,7 @@ def render_panel(
 
     st.divider()
 
-    step_title(
-        "Step 1: Refine Search Query",
-        "Extract key concepts from the claim and build a retrieval-oriented Boolean query.",
-        theme,
-    )
+    st.markdown("### Step 1: Refine Search Query")
     st.caption("Builds a literature-oriented query from the current claim and configuration.")
 
     c1, c2 = st.columns(2)
@@ -1304,11 +2323,7 @@ def render_panel(
 
     st.divider()
 
-    step_title(
-        "Step 2: Run Evidence Scan",
-        "Retrieve literature for the active query and score the current claim against the evidence snapshot.",
-        theme,
-    )
+    st.markdown("### Step 2: Run Evidence Scan")
     st.caption("Queries the selected literature source and builds an evidence snapshot.")
 
     if st.button(
@@ -1333,7 +2348,6 @@ def render_panel(
                     lens=lens_ui,
                     support_level=str(snapshot.get("support_level", "none")),
                 )
-                delete_keys([keys["pdf_cache"]])
             except Exception as exc:
                 render_note_box("Scan Error", str(exc), theme)
 
@@ -1344,11 +2358,7 @@ def render_panel(
 
     st.divider()
 
-    step_title(
-        "Step 3: Generate Evidence-Aware Prompts",
-        "Create structured prompts that explicitly reflect support strength, uncertainty, and redesign direction.",
-        theme,
-    )
+    st.markdown("### Step 3: Generate Evidence-Aware Prompts")
     st.caption("Turns the current evidence state into reusable LLM prompts.")
 
     if keys["scan"] not in st.session_state:
@@ -1373,7 +2383,6 @@ def render_panel(
                     response = api_post("/evidence/prompts", payload_prompts)
                     prompts = extract_prompts_payload(response)
                     st.session_state[keys["prompts"]] = prompts
-                    delete_keys([keys["pdf_cache"]])
                 except Exception as exc:
                     render_note_box("Prompt Generation Error", str(exc), theme)
 
@@ -1383,11 +2392,7 @@ def render_panel(
 
     st.divider()
 
-    step_title(
-        "Step 4: Full Multi-Lens Audit",
-        "Run the evidence pipeline across all analytical lenses and return a comparative matrix.",
-        theme,
-    )
+    st.markdown("### Step 4: Full Multi-Lens Audit")
     st.caption("Produces a multi-lens summary suitable for export and reporting.")
 
     if st.button(
@@ -1401,7 +2406,6 @@ def render_panel(
                 response = api_post("/evidence/scan-all-lenses", payload_base)
                 matrix = extract_lens_matrix(response)
                 st.session_state[keys["matrix"]] = matrix
-                delete_keys([keys["pdf_cache"]])
             except Exception as exc:
                 render_note_box("Audit Error", str(exc), theme)
 
@@ -1412,7 +2416,7 @@ def render_panel(
         st.markdown("#### Analytical Lens Matrix")
         render_matrix_table(df, levels, theme)
 
-        d1, d2, d3 = st.columns(3)
+        d1, d2 = st.columns(2)
 
         with d1:
             st.download_button(
@@ -1446,34 +2450,6 @@ def render_panel(
                 use_container_width=True,
                 help="Export the lens matrix as JSON.",
             )
-
-        with d3:
-            if keys["pdf_cache"] not in st.session_state:
-                try:
-                    scan_state = ensure_dict(st.session_state.get(keys["scan"]))
-                    prompts = ensure_dict(st.session_state.get(keys["prompts"]))
-                    st.session_state[keys["pdf_cache"]] = generate_pdf_report(
-                        claim=claim_text,
-                        lens=lens_ui,
-                        preset=domain_mode,
-                        snap=ensure_dict(scan_state.get("snapshot")) if scan_state else None,
-                        prompts=prompts if prompts else None,
-                        matrix=matrix,
-                    )
-                except Exception as exc:
-                    render_note_box("PDF Generation Error", str(exc), theme)
-                    st.session_state[keys["pdf_cache"]] = b""
-
-            if st.session_state.get(keys["pdf_cache"]):
-                st.download_button(
-                    "Download PDF",
-                    st.session_state[keys["pdf_cache"]],
-                    f"ecosentia_report_{pid}.pdf",
-                    "application/pdf",
-                    key=f"pdf_btn_{pid}",
-                    use_container_width=True,
-                    help="Export a compact PDF report.",
-                )
 
 
 def main() -> None:
