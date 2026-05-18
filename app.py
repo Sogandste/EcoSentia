@@ -1556,6 +1556,4 @@ def render_panel(
         help="You can manually edit the active query before scanning.",
     )
 
-    # FIX (v0.5.1): Read q_text from session_state, not from the widget's
-    # return value.  When Refine Query updates session_state[active_query] and
-    # Execute Scan is pressed in the same rerun, the widget return
+   

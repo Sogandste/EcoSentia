@@ -15,7 +15,7 @@ st.set_page_config(page_title="EcoSentia", layout="wide", page_icon="▪")
 
 API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
 APP_TITLE = "EcoSentia"
-APP_VERSION = "v0.5"
+APP_VERSION = "v0.5.1"
 APP_ICON = "▪"
 HTTP_TIMEOUT = 120
 HEALTH_TIMEOUT = 10
@@ -198,7 +198,9 @@ def extract_refined_query(response: Dict[str, Any], fallback_claim: str) -> str:
     return str(query) if query else fallback_claim
 
 
-def extract_scan_payload(response: Dict[str, Any], fallback_query: str) -> Tuple[Dict[str, Any], str]:
+def extract_scan_payload(
+    response: Dict[str, Any], fallback_query: str
+) -> Tuple[Dict[str, Any], str]:
     snapshot = first_non_empty(
         response.get("snapshot"),
         safe_get(response, "data", "snapshot"),
@@ -592,13 +594,20 @@ def render_support_bar_html(level: str, text_color: str, border_color: str) -> s
     """
 
 
-def render_copy_button(text: str, icon_color: str, border_color: str) -> None:
-    escaped = (
-        text.replace("\\", "\\\\")
-        .replace("`", "\\`")
+def _js_escape(text: str) -> str:
+    return (
+        text
+        .replace("\\", "\\\\")
+        .replace("`",  "\\`")
         .replace("\n", "\\n")
         .replace("\r", "")
+        .replace("</", "<\\/")
+        .replace('"',  '\\"')
     )
+
+
+def render_copy_button(text: str, icon_color: str, border_color: str) -> None:
+    escaped = _js_escape(text)
     components.html(
         f"""
         <button onclick="navigator.clipboard.writeText(`{escaped}`).then(() => {{
@@ -843,41 +852,52 @@ def build_base_payload(
     }
 
 
-def build_matrix_dataframe(matrix: Dict[str, Any]) -> pd.DataFrame:
-    rows: List[Dict[str, str]] = []
+def build_matrix_dataframe(
+    matrix: Dict[str, Any],
+) -> Tuple[pd.DataFrame, List[str]]:
+    rows:   List[Dict[str, str]] = []
+    levels: List[str]            = []
 
     for lens_name, result in matrix.items():
         result_dict = ensure_dict(result)
         if "error" in result_dict:
             rows.append({
-                "Lens": lens_name.capitalize(),
+                "Lens":    lens_name.capitalize(),
                 "Support": "Error",
-                "Risks": str(result_dict["error"]),
-                "_level": "error",
+                "Risks":   str(result_dict["error"]),
             })
+            levels.append("error")
         else:
             biases = coerce_bias_list(result_dict.get("detected_biases"))
-            risk_str = ", ".join(
-                b.get("bias", "") if isinstance(b, dict) else str(b)
-                for b in biases
-            ) if biases else "None"
+            risk_str = (
+                ", ".join(
+                    b.get("bias", "") if isinstance(b, dict) else str(b)
+                    for b in biases
+                )
+                if biases else "None"
+            )
             rows.append({
-                "Lens": lens_name.capitalize(),
+                "Lens":    lens_name.capitalize(),
                 "Support": str(result_dict.get("support_level", "none")).capitalize(),
-                "Risks": risk_str,
-                "_level": str(result_dict.get("support_level", "none")).lower(),
+                "Risks":   risk_str,
             })
+            levels.append(str(result_dict.get("support_level", "none")).lower())
 
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows), levels
 
 
-def render_matrix_table(df: pd.DataFrame, theme: ThemeDict) -> None:
+def render_matrix_table(
+    df:     pd.DataFrame,
+    levels: List[str],
+    theme:  ThemeDict,
+) -> None:
     rows_html = ""
-    for _, row in df.iterrows():
+    for i, (_, row) in enumerate(df.iterrows()):
+        level = levels[i] if i < len(levels) else "none"
         rows_html += f"""
         <tr>
           <td style="font-weight:600;color:{theme['text']};">{row['Lens']}</td>
-          <td><span class="badge badge-{row['_level']}">{row['Support']}</span></td>
+          <td><span class="badge badge-{level}">{row['Support']}</span></td>
           <td style="color:{theme['text_muted']};font-size:13px;">{row['Risks']}</td>
         </tr>
         """
@@ -902,12 +922,12 @@ def render_matrix_table(df: pd.DataFrame, theme: ThemeDict) -> None:
 def invalidate_panel_state(pid: str, claim_text: str) -> Dict[str, str]:
     keys = {
         "refined_query": f"refined_query_{pid}",
-        "active_query": f"active_query_{pid}",
-        "scan": f"scan_{pid}",
-        "prompts": f"prompts_{pid}",
-        "matrix": f"lens_matrix_{pid}",
-        "claim_cache": f"claim_cache_{pid}",
-        "pdf_cache": f"pdf_cache_{pid}",
+        "active_query":  f"active_query_{pid}",
+        "scan":          f"scan_{pid}",
+        "prompts":       f"prompts_{pid}",
+        "matrix":        f"lens_matrix_{pid}",
+        "claim_cache":   f"claim_cache_{pid}",
+        "pdf_cache":     f"pdf_cache_{pid}",
     }
 
     if st.session_state.get(keys["claim_cache"]) != claim_text:
@@ -941,17 +961,17 @@ def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
     st.info(str(snapshot.get("summary", "No summary available.")))
 
     top_records = ensure_list(snapshot.get("top_records"))
-    top_titles = ensure_list(snapshot.get("top_titles"))
+    top_titles  = ensure_list(snapshot.get("top_titles"))
 
     if top_records:
         with st.expander("Top Retrieved Titles"):
             for record in top_records:
-                record_dict = ensure_dict(record)
-                title = str(record_dict.get("title", "Untitled"))
-                url = str(record_dict.get("url", ""))
-                src = str(record_dict.get("source", "")).title()
-                score = record_dict.get("score", "")
-                meta = src + (f" · Score: {score}" if score != "" else "")
+                record_dict   = ensure_dict(record)
+                title         = str(record_dict.get("title", "Untitled"))
+                url           = str(record_dict.get("url", ""))
+                src           = str(record_dict.get("source", "")).title()
+                score         = record_dict.get("score", "")
+                meta          = src + (f" · Score: {score}" if score != "" else "")
 
                 if url:
                     st.markdown(f"- [{title}]({url})")
@@ -968,15 +988,15 @@ def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
 
 
 def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
-    level = str(prompts.get("support_level", "none")).lower()
+    level         = str(prompts.get("support_level", "none")).lower()
     evidence_note = str(prompts.get("evidence_note", ""))
 
     level_map = {
-        "none": "error",
-        "limited": "warning",
+        "none":     "error",
+        "limited":  "warning",
         "indirect": "warning",
         "moderate": "info",
-        "direct": "success",
+        "direct":   "success",
     }
 
     getattr(st, level_map.get(level, "info"))(
@@ -992,7 +1012,7 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
     if biases:
         st.markdown("#### Detected Translation Risk Patterns")
         for bias in biases:
-            name = bias.get("bias", "") if isinstance(bias, dict) else str(bias)
+            name        = bias.get("bias",        "") if isinstance(bias, dict) else str(bias)
             explanation = bias.get("explanation", "") if isinstance(bias, dict) else ""
             st.markdown(
                 f"""
@@ -1008,10 +1028,10 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
 
     st.markdown("#### Evaluation Prompts")
     prompt_meta = [
-        ("Master Prompt", "master_prompt", True, "Primary evaluation prompt for direct LLM use."),
-        ("Counter Prompt", "counter_prompt", False, "Challenges the validity of the design claim."),
+        ("Master Prompt",       "master_prompt",      True,  "Primary evaluation prompt for direct LLM use."),
+        ("Counter Prompt",      "counter_prompt",     False, "Challenges the validity of the design claim."),
         ("Uncertainty Mapping", "uncertainty_prompt", False, "Maps unknowns and contested areas in the literature."),
-        ("Redesign Prompt", "redesign_prompt", False, "Suggests evidence-grounded modifications."),
+        ("Redesign Prompt",     "redesign_prompt",    False, "Suggests evidence-grounded modifications."),
     ]
 
     for title, key, expanded, description in prompt_meta:
@@ -1030,21 +1050,22 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
 
 
 def render_panel(
-    pid: str,
-    claim_text: str,
+    pid:         str,
+    claim_text:  str,
     domain_mode: str,
-    lens_ui: str,
-    source: str,
+    lens_ui:     str,
+    source:      str,
     max_results: int,
-    bio_model: str,
-    trg_func: str,
-    app_ctx: str,
-    mech_kw: str,
-    excl_kw: str,
-    theme: ThemeDict,
+    bio_model:   str,
+    trg_func:    str,
+    app_ctx:     str,
+    mech_kw:     str,
+    excl_kw:     str,
+    theme:       ThemeDict,
 ) -> None:
-    keys = invalidate_panel_state(pid, claim_text)
+    ensure_session_defaults()
 
+    keys         = invalidate_panel_state(pid, claim_text)
     payload_base = build_base_payload(
         pid=pid,
         claim_text=claim_text,
@@ -1060,7 +1081,6 @@ def render_panel(
     )
 
     st.divider()
-
     st.markdown("### Step 1: Refine Search Query")
     st.caption(
         "Extracts key entities from the claim and builds a Boolean query "
@@ -1072,10 +1092,10 @@ def render_panel(
         if st.button("Refine Query", key=f"refine_btn_{pid}", use_container_width=True):
             with st.spinner("Refining..."):
                 try:
-                    response = api_post("/evidence/refine-query", payload_base)
+                    response      = api_post("/evidence/refine-query", payload_base)
                     refined_query = extract_refined_query(response, claim_text)
                     st.session_state[keys["refined_query"]] = refined_query
-                    st.session_state[keys["active_query"]] = refined_query
+                    st.session_state[keys["active_query"]]  = refined_query
                     st.success("Query refined.")
                 except Exception as exc:
                     st.error(str(exc))
@@ -1083,20 +1103,24 @@ def render_panel(
     with c2:
         if st.button("Use Claim", key=f"use_claim_btn_{pid}", use_container_width=True):
             st.session_state[keys["refined_query"]] = claim_text
-            st.session_state[keys["active_query"]] = claim_text
+            st.session_state[keys["active_query"]]  = claim_text
 
     if keys["active_query"] not in st.session_state:
-        st.session_state[keys["active_query"]] = st.session_state.get(keys["refined_query"], claim_text)
+        st.session_state[keys["active_query"]] = st.session_state.get(
+            keys["refined_query"], claim_text
+        )
 
-    q_text = st.text_area(
+    st.text_area(
         "Active Query (Editable)",
         key=keys["active_query"],
         height=80,
         help="You can manually edit the active query before scanning.",
     )
+    # Read from session_state so that a Refine → Scan sequence in the same
+    # rerun always sends the freshly refined query, not the stale widget value.
+    q_text = st.session_state.get(keys["active_query"], claim_text)
 
     st.divider()
-
     st.markdown("### Step 2: Run Evidence Scan")
     st.caption(
         "Retrieves abstracts and scores semantic overlap with the original design claim."
@@ -1109,8 +1133,8 @@ def render_panel(
                 snapshot, query_used = extract_scan_payload(response, q_text)
 
                 scan_payload = {
-                    "raw": response,
-                    "snapshot": snapshot,
+                    "raw":        response,
+                    "snapshot":   snapshot,
                     "query_text": query_used,
                 }
                 st.session_state[keys["scan"]] = scan_payload
@@ -1127,11 +1151,10 @@ def render_panel(
 
     if keys["scan"] in st.session_state:
         scan_state = ensure_dict(st.session_state[keys["scan"]])
-        snapshot = ensure_dict(scan_state.get("snapshot"))
+        snapshot   = ensure_dict(scan_state.get("snapshot"))
         render_scan_results(snapshot, theme)
 
     st.divider()
-
     st.markdown("### Step 3: Generate Evidence-Aware Prompts")
     st.caption("Builds structured LLM prompts grounded in the retrieved evidence snapshot.")
 
@@ -1143,14 +1166,14 @@ def render_panel(
                 try:
                     scan_state = ensure_dict(st.session_state[keys["scan"]])
                     payload_prompts = {
-                        "preset": domain_mode.lower(),
-                        "lens": lens_ui.lower(),
-                        "claim": claim_text,
+                        "preset":     domain_mode.lower(),
+                        "lens":       lens_ui.lower(),
+                        "claim":      claim_text,
                         "query_text": str(scan_state.get("query_text", q_text)),
-                        "snapshot": ensure_dict(scan_state.get("snapshot")),
+                        "snapshot":   ensure_dict(scan_state.get("snapshot")),
                     }
                     response = api_post("/evidence/prompts", payload_prompts)
-                    prompts = extract_prompts_payload(response)
+                    prompts  = extract_prompts_payload(response)
                     st.session_state[keys["prompts"]] = prompts
                     delete_keys([keys["pdf_cache"]])
                     st.success("Prompts generated.")
@@ -1162,7 +1185,6 @@ def render_panel(
             render_prompt_results(prompts, theme)
 
     st.divider()
-
     st.markdown("### Step 4: Full Multi-Lens Audit")
     st.caption(
         "Runs the evidence scan across all five analytical lenses and returns a unified risk matrix."
@@ -1172,7 +1194,7 @@ def render_panel(
         with st.spinner("Scanning all lenses..."):
             try:
                 response = api_post("/evidence/scan-all-lenses", payload_base)
-                matrix = extract_lens_matrix(response)
+                matrix   = extract_lens_matrix(response)
                 st.session_state[keys["matrix"]] = matrix
                 delete_keys([keys["pdf_cache"]])
                 st.success("Multi-lens audit complete.")
@@ -1180,19 +1202,18 @@ def render_panel(
                 st.error(str(exc))
 
     if keys["matrix"] in st.session_state:
-        matrix = ensure_dict(st.session_state[keys["matrix"]])
-        df = build_matrix_dataframe(matrix)
+        matrix        = ensure_dict(st.session_state[keys["matrix"]])
+        df, levels    = build_matrix_dataframe(matrix)
 
         st.markdown("#### Analytical Lens Matrix")
-        render_matrix_table(df, theme)
+        render_matrix_table(df, levels, theme)
 
-        export_df = df.drop(columns=["_level"])
         d1, d2, d3 = st.columns(3)
 
         with d1:
             st.download_button(
                 "Download CSV",
-                export_df.to_csv(index=False).encode("utf-8"),
+                df.to_csv(index=False).encode("utf-8"),
                 f"ecosentia_matrix_{pid}.csv",
                 "text/csv",
                 key=f"csv_btn_{pid}",
@@ -1204,11 +1225,11 @@ def render_panel(
                 json.dumps(
                     [
                         {
-                            "lens": row["Lens"],
+                            "lens":    row["Lens"],
                             "support": row["Support"],
-                            "risks": row["Risks"],
+                            "risks":   row["Risks"],
                         }
-                        for _, row in export_df.iterrows()
+                        for _, row in df.iterrows()
                     ],
                     indent=2,
                     ensure_ascii=False,
@@ -1221,7 +1242,7 @@ def render_panel(
         with d3:
             if keys["pdf_cache"] not in st.session_state:
                 scan_state = ensure_dict(st.session_state.get(keys["scan"]))
-                prompts = ensure_dict(st.session_state.get(keys["prompts"]))
+                prompts    = ensure_dict(st.session_state.get(keys["prompts"]))
                 st.session_state[keys["pdf_cache"]] = generate_pdf_report(
                     claim=claim_text,
                     lens=lens_ui,
@@ -1244,7 +1265,7 @@ def main() -> None:
     ensure_session_defaults()
 
     api_health = get_api_health()
-    theme = get_theme(st.session_state.dark_mode)
+    theme      = get_theme(st.session_state.dark_mode)
 
     inject_css(theme)
     render_sidebar(api_health)
@@ -1268,21 +1289,21 @@ def main() -> None:
         max_results = st.slider("Max Results Per Source", 1, 10, 5)
 
     bio_model = ""
-    trg_func = ""
-    app_ctx = ""
-    mech_kw = ""
-    excl_kw = ""
+    trg_func  = ""
+    app_ctx   = ""
+    mech_kw   = ""
+    excl_kw   = ""
 
     if domain_mode == "Custom":
         with st.expander("Custom Guidance (Optional but Recommended)", expanded=True):
             x1, x2 = st.columns(2)
             with x1:
-                bio_model = st.text_input("Biological Model", placeholder="e.g., Gecko, Mussel")
-                app_ctx = st.text_input("Application Context", placeholder="e.g., Wet biomedical surfaces")
+                bio_model = st.text_input("Biological Model",    placeholder="e.g., Gecko, Mussel")
+                app_ctx   = st.text_input("Application Context", placeholder="e.g., Wet biomedical surfaces")
             with x2:
-                trg_func = st.text_input("Target Function", placeholder="e.g., Reversible adhesion")
-                mech_kw = st.text_input("Mechanism Keywords", placeholder="e.g., microstructure, van der Waals")
-            excl_kw = st.text_input("Exclude Terms", placeholder="e.g., vaccine, remote sensing")
+                trg_func = st.text_input("Target Function",      placeholder="e.g., Reversible adhesion")
+                mech_kw  = st.text_input("Mechanism Keywords",   placeholder="e.g., microstructure, van der Waals")
+            excl_kw = st.text_input("Exclude Terms",             placeholder="e.g., vaccine, remote sensing")
 
     if not st.session_state.compare_mode:
         claim_main = st.text_area(
