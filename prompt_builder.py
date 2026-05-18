@@ -3,13 +3,12 @@
 Generates evidence-aware prompts for LLM interrogation of biomimetic claims.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from bias_checker import detect_biases
-from domain_config import LENS_CHECKLIST, ALL_LENSES
+from domain_config import LENS_CHECKLIST
 from logger import get_logger
 
 log = get_logger(__name__)
-
 
 def _format_evidence_note(snap: Dict[str, Any]) -> str:
     support = snap.get("support_level", "none")
@@ -21,7 +20,6 @@ def _format_evidence_note(snap: Dict[str, Any]) -> str:
         f"Records: {combined}. Direct hits: {direct_hits}. "
         f"Summary: {summary}"
     )
-
 
 def _build_master(claim: str, lens: str, query_text: str, snap: Dict[str, Any]) -> str:
     support = snap.get("support_level", "none")
@@ -47,7 +45,6 @@ def _build_master(claim: str, lens: str, query_text: str, snap: Dict[str, Any]) 
         f"6. Confidence estimate (Low / Medium / High) with justification."
     )
 
-
 def _build_counter(claim: str, lens: str, evidence_note: str) -> str:
     return (
         f"Challenge this biomimetic claim critically.\n\n"
@@ -62,20 +59,18 @@ def _build_counter(claim: str, lens: str, evidence_note: str) -> str:
         f"- What alternative explanations exist for the claimed performance?"
     )
 
-
 def _build_uncertainty(claim: str, evidence_note: str) -> str:
     return (
         f"Map the uncertainties in this claim.\n\n"
         f"## Claim\n{claim}\n\n"
         f"## Evidence\n{evidence_note}\n\n"
         f"## Return Structure\n"
-        f"1. **Known** — What is established from retrieved literature.\n"
-        f"2. **Suggested** — What is only indirectly implied.\n"
-        f"3. **Unknown** — What remains unsupported or speculative.\n"
-        f"4. **Next Steps** — Priority list of evidence to seek.\n"
-        f"5. **Risk Assessment** — What could go wrong if unknowns are ignored."
+        f"1. **Known** - What is established from retrieved literature.\n"
+        f"2. **Suggested** - What is only indirectly implied.\n"
+        f"3. **Unknown** - What remains unsupported or speculative.\n"
+        f"4. **Next Steps** - Priority list of evidence to seek.\n"
+        f"5. **Risk Assessment** - What could go wrong if unknowns are ignored."
     )
-
 
 def _build_redesign(claim: str, evidence_note: str) -> str:
     return (
@@ -89,11 +84,10 @@ def _build_redesign(claim: str, evidence_note: str) -> str:
         f"- Specify conditions, scale, or validation steps.\n"
         f"- State which aspects require further investigation.\n\n"
         f"## Output\n"
-        f"- **Revised Claim** (1–3 sentences)\n"
+        f"- **Revised Claim** (1-3 sentences)\n"
         f"- **Rationale** (why changes were made)\n"
         f"- **Remaining Gaps** (what still needs validation)"
     )
-
 
 def build_evidence_aware_prompts(
     preset: str,
@@ -102,17 +96,10 @@ def build_evidence_aware_prompts(
     query_text: str,
     snapshot: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """
-    Generate a suite of evidence-aware prompts for LLM evaluation.
-    
-    Returns dict with: support_level, evidence_note, detected_biases,
-    master_prompt, counter_prompt, uncertainty_prompt, redesign_prompt, look_for.
-    """
     snap = snapshot or {}
     lens_norm = (lens or "mechanism").lower()
     evidence_note = _format_evidence_note(snap)
     biases = detect_biases(claim, lens=lens_norm)
-
     look_for = LENS_CHECKLIST.get(lens_norm, LENS_CHECKLIST["mechanism"])
 
     result = {

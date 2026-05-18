@@ -1,12 +1,10 @@
 # domain_config.py
 """
-Centralized domain configuration — single source of truth.
+Centralized domain configuration.
 All domain-specific terms, lenses, and checklist items live here.
 """
 
 from typing import Dict, List, FrozenSet
-
-# ─── Fog Harvesting Domain ────────────────────────────────────────────────────
 
 FOG_ANCHORS: Dict[str, List[str]] = {
     "bio_model": [
@@ -33,8 +31,6 @@ FOG_ANCHORS: Dict[str, List[str]] = {
     ],
 }
 
-# ─── EV-Inspired Nanomedicine Domain ─────────────────────────────────────────
-
 EV_ANCHORS: Dict[str, List[str]] = {
     "bio_model": [
         "extracellular vesicle", "exosome", "cell-derived vesicle",
@@ -56,8 +52,6 @@ EV_ANCHORS: Dict[str, List[str]] = {
     ],
 }
 
-# ─── Phrase library (used by query_builder for extraction) ────────────────────
-
 KNOWN_PHRASES: FrozenSet[str] = frozenset([
     "fog harvesting", "water harvesting", "water collection",
     "namib desert beetle", "extracellular vesicle", "drug delivery",
@@ -68,8 +62,6 @@ KNOWN_PHRASES: FrozenSet[str] = frozenset([
     "membrane-coated", "targeted delivery", "immune evasion",
     "nanoparticle", "cellular uptake", "membrane fusion",
 ])
-
-# ─── Lens Configuration ──────────────────────────────────────────────────────
 
 LENS_TERMS: Dict[str, List[str]] = {
     "mechanism": ["mechanism", "functional", "causal", "biophysical", "surface energy"],
@@ -111,7 +103,6 @@ ALL_LENSES: List[str] = list(LENS_TERMS.keys())
 
 
 def get_anchors(preset: str) -> Dict[str, List[str]]:
-    """Return the anchor dictionary for a given preset."""
     p = (preset or "").strip().lower()
     if p == "fog":
         return FOG_ANCHORS
@@ -121,11 +112,9 @@ def get_anchors(preset: str) -> Dict[str, List[str]]:
 
 
 def get_positive_terms(preset: str) -> List[str]:
-    """All positive terms (bio_model + function + mechanism + design)."""
     a = get_anchors(preset)
     return a["bio_model"] + a["function"] + a["mechanism"] + a["design"]
 
 
 def get_negative_terms(preset: str) -> List[str]:
-    """All negative/exclusion terms."""
     return get_anchors(preset).get("negative", [])

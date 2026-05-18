@@ -5,9 +5,7 @@ Builds refined Boolean queries from domain anchors, claim analysis, and user fie
 
 import re
 from typing import List, Dict
-from domain_config import (
-    FOG_ANCHORS, EV_ANCHORS, LENS_TERMS, KNOWN_PHRASES, get_anchors,
-)
+from domain_config import FOG_ANCHORS, EV_ANCHORS, LENS_TERMS, KNOWN_PHRASES, get_anchors
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -20,33 +18,25 @@ _STOP_WORDS = frozenset({
     "can", "may", "could", "would", "should", "has", "have", "had",
 })
 
-
 def _clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
-
 
 def _split_csv(text: str) -> List[str]:
     if not text:
         return []
     return [p.strip() for p in re.split(r"[,\n;]+", text) if p.strip()]
 
-
 def _extract_claim_terms(claim: str) -> List[str]:
-    """Extract meaningful terms from a claim using phrase matching + tokenization."""
     claim = _clean_text(claim)
     if not claim:
         return []
 
     lowered = claim.lower()
-
-    # Phase 1: Known multi-word phrases
     phrases = [p for p in KNOWN_PHRASES if p in lowered]
-
-    # Phase 2: Single tokens
+    
     tokens = re.findall(r"[A-Za-z0-9\-]+", lowered)
     tokens = [t for t in tokens if len(t) > 2 and t not in _STOP_WORDS]
 
-    # Deduplicate preserving order
     seen = set()
     out = []
     for x in phrases + tokens:
@@ -56,11 +46,9 @@ def _extract_claim_terms(claim: str) -> List[str]:
 
     return out[:14]
 
-
 def _quote(term: str) -> str:
     term = term.strip()
     return f'"{term}"' if " " in term else term
-
 
 def _or_block(terms: List[str], limit: int = 8) -> str:
     terms = [_quote(t) for t in terms if t][:limit]
@@ -69,7 +57,6 @@ def _or_block(terms: List[str], limit: int = 8) -> str:
     if len(terms) == 1:
         return terms[0]
     return "(" + " OR ".join(terms) + ")"
-
 
 def build_refined_query(
     preset: str,
@@ -83,13 +70,7 @@ def build_refined_query(
     mechanism_keywords: str = "",
     exclude_terms: str = "",
 ) -> str:
-    """
-    Build a structured Boolean query.
     
-    Strategy:
-    - For known domains (fog/ev): anchor terms + user fields + lens terms
-    - For custom: claim-driven + user fields
-    """
     mode = (domain_mode or preset or "fog").strip().lower()
     lens_norm = (lens or "mechanism").strip().lower()
     claim_terms = _extract_claim_terms(claim)
@@ -112,7 +93,6 @@ def build_refined_query(
         ]
         neg = anchors["negative"] + excl
     else:
-        # Custom: claim-driven + user fields
         blocks = [
             _or_block(bio + claim_terms[:3], limit=6),
             _or_block(func + claim_terms[2:6], limit=6),
@@ -132,24 +112,5 @@ def build_refined_query(
         if neg_block:
             query = f"{query} NOT {neg_block}"
 
-    log.debug(f"Built query [{mode}/{lens_norm}]: {query[:120]}...")
+    log.debug(f"Query generated: {query[:120]}...")
     return _clean_text(query)
-
-
-def build_query_metadata(
-    claim: str, lens: str, domain_mode: str = "Fog",
-    biological_model: str = "", target_function: str = "",
-    application_context: str = "", mechanism_keywords: str = "",
-    exclude_terms: str = "",
-) -> Dict[str, List[str]]:
-    """Return structured metadata about what went into query building."""
-    return {
-        "claim_terms": _extract_claim_terms(claim),
-        "lens_terms": LENS_TERMS.get((lens or "").lower(), []),
-        "bio": _split_csv(biological_model),
-        "function": _split_csv(target_function),
-        "context": _split_csv(application_context),
-        "mechanism": _split_csv(mechanism_keywords),
-        "exclude": _split_csv(exclude_terms),
-        "mode": [domain_mode],
-    }

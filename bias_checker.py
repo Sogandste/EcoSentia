@@ -1,7 +1,7 @@
 # bias_checker.py
 """
-Rule-based bias/risk pattern detection for biomimetic claims.
-Uses flexible matching (regex-capable) to avoid exact-string brittleness.
+Rule-based bias and risk pattern detection for biomimetic claims.
+Uses flexible word-boundary matching to avoid exact-string brittleness.
 """
 
 import re
@@ -10,11 +10,8 @@ from logger import get_logger
 
 log = get_logger(__name__)
 
-
 def _contains_any(text: str, patterns: List[str]) -> bool:
-    """Check if text contains any of the patterns (supports word boundaries)."""
     for p in patterns:
-        # Use word boundary for short terms to avoid substring matches
         if len(p) <= 5:
             if re.search(rf"\b{re.escape(p)}\b", text):
                 return True
@@ -22,19 +19,6 @@ def _contains_any(text: str, patterns: List[str]) -> bool:
             if p in text:
                 return True
     return False
-
-
-def _contains_all(text: str, patterns: List[str]) -> bool:
-    """Check if text contains ALL patterns."""
-    for p in patterns:
-        if len(p) <= 5:
-            if not re.search(rf"\b{re.escape(p)}\b", text):
-                return False
-        else:
-            if p not in text:
-                return False
-    return True
-
 
 BIAS_RULES = [
     {
@@ -77,18 +61,7 @@ BIAS_RULES = [
     },
 ]
 
-
 def detect_biases(claim: str, lens: Optional[str] = None) -> List[Dict[str, str]]:
-    """
-    Detect potential biases/risk patterns in a biomimetic claim.
-    
-    Args:
-        claim: The design claim text
-        lens: Optional current lens for context-aware detection
-    
-    Returns:
-        List of {bias, explanation} dicts
-    """
     text = (claim or "").lower()
     if not text:
         return [{"bias": "Empty Claim", "explanation": "No claim text provided for analysis."}]
@@ -100,24 +73,16 @@ def detect_biases(claim: str, lens: Optional[str] = None) -> List[Dict[str, str]
         req_any_2 = rule.get("require_any_2", [])
         req_none = rule.get("require_none", [])
 
-        # Must match at least one from require_any
         pass_any = _contains_any(text, req_any) if req_any else True
-
-        # If require_any_2 exists, must also match at least one from it
         pass_any_2 = _contains_any(text, req_any_2) if req_any_2 else True
-
-        # Must NOT match any from require_none
         pass_none = not _contains_any(text, req_none) if req_none else True
 
-        triggered = pass_any and pass_any_2 and pass_none
-
-        if triggered and (req_any or req_any_2):
+        if pass_any and pass_any_2 and pass_none and (req_any or req_any_2):
             found.append({
                 "bias": rule["bias"],
                 "explanation": rule["explanation"],
             })
 
-    # Lens-specific bonus checks
     if lens:
         lens_l = lens.lower()
         if lens_l == "safety" and not _contains_any(text, ["safety", "toxic", "biocompat", "risk"]):
@@ -137,5 +102,5 @@ def detect_biases(claim: str, lens: Optional[str] = None) -> List[Dict[str, str]
             "explanation": "No obvious translation-risk pattern identified. Manual review still recommended.",
         })
 
-    log.debug(f"Bias detection: {len(found)} pattern(s) for claim[:60]='{text[:60]}'")
+    log.debug(f"Bias detection: {len(found)} pattern(s) identified.")
     return found

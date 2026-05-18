@@ -7,7 +7,7 @@ Fetches from PubMed (esearch + efetch for abstracts) and OpenAlex.
 import os
 import re
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from xml.etree import ElementTree as ET
 
 import requests
@@ -19,40 +19,30 @@ from logger import get_logger
 
 log = get_logger(__name__)
 
-# ─── Configuration ────────────────────────────────────────────────────────────
-
 PUBMED_ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 OPENALEX_WORKS = "https://api.openalex.org/works"
 
-ECOSENTIA_EMAIL = os.getenv("ECOSENTIA_EMAIL", "shayesteh222sowgand@gmail.com")
-NCBI_API_KEY = os.getenv("NCBI_API_KEY", "")  # Optional: raises rate limit to 10/sec
+ECOSENTIA_EMAIL = os.getenv("ECOSENTIA_EMAIL", "ecosentia@example.com")
+NCBI_API_KEY = os.getenv("NCBI_API_KEY", "")
 
-# Rate-limit: max 3 req/sec without key, 10 with key
 _PUBMED_DELAY = 0.34 if not NCBI_API_KEY else 0.1
-
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
-
 def _tokens(text: str) -> List[str]:
     return re.findall(r"[a-z0-9\-]+", (text or "").lower())
-
 
 def _term_hits(text: str, terms: List[str]) -> List[str]:
     txt = (text or "").lower()
     return [t for t in terms if t.lower() in txt]
-
 
 def _jaccard(a: List[str], b: List[str]) -> float:
     sa, sb = set(a), set(b)
     if not sa or not sb:
         return 0.0
     return len(sa & sb) / len(sa | sb)
-
 
 def _session() -> requests.Session:
     s = requests.Session()
@@ -67,18 +57,8 @@ def _session() -> requests.Session:
     s.headers["User-Agent"] = "EcoSentia/0.3 (academic-prototype)"
     return s
 
-
-# ─── PubMed: esearch + efetch (XML for abstracts) ────────────────────────────
-
 def _fetch_pubmed(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-    """
-    Two-step PubMed retrieval:
-    1. esearch → get PMIDs
-    2. efetch (XML) → get title + abstract
-    """
     session = _session()
-
-    # Step 1: Search
     params = {
         "db": "pubmed",
         "term": query,
@@ -101,7 +81,6 @@ def _fetch_pubmed(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     log.info(f"PubMed: found {len(pmids)} PMIDs")
     time.sleep(_PUBMED_DELAY)
 
-    # Step 2: Fetch full records (XML for proper abstract parsing)
     fetch_params = {
         "db": "pubmed",
         "id": ",".join(pmids),
@@ -114,12 +93,9 @@ def _fetch_pubmed(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     rf = session.get(PUBMED_EFETCH, params=fetch_params, timeout=25)
     rf.raise_for_status()
 
-    records = _parse_pubmed_xml(rf.text, pmids)
-    return records
-
+    return _parse_pubmed_xml(rf.text, pmids)
 
 def _parse_pubmed_xml(xml_text: str, pmids: List[str]) -> List[Dict[str, Any]]:
-    """Parse PubMed efetch XML to extract title, abstract, year."""
     records = []
     try:
         root = ET.fromstring(xml_text)
@@ -131,11 +107,9 @@ def _parse_pubmed_xml(xml_text: str, pmids: List[str]) -> List[Dict[str, Any]]:
         pmid_el = article.find(".//PMID")
         pmid = pmid_el.text if pmid_el is not None else ""
 
-        # Title
         title_el = article.find(".//ArticleTitle")
         title = _clean(title_el.text if title_el is not None else "")
 
-        # Abstract (may have multiple AbstractText elements)
         abstract_parts = []
         for abs_el in article.findall(".//AbstractText"):
             label = abs_el.get("Label", "")
@@ -146,7 +120,6 @@ def _parse_pubmed_xml(xml_text: str, pmids: List[str]) -> List[Dict[str, Any]]:
                 abstract_parts.append(text)
         abstract = _clean(" ".join(abstract_parts))
 
-        # Year
         year = None
         year_el = article.find(".//PubDate/Year")
         if year_el is not None and year_el.text:
@@ -173,12 +146,8 @@ def _parse_pubmed_xml(xml_text: str, pmids: List[str]) -> List[Dict[str, Any]]:
     log.info(f"PubMed XML parsed: {len(records)} records with abstracts")
     return records
 
-
-# ─── OpenAlex ─────────────────────────────────────────────────────────────────
-
 def _fetch_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     session = _session()
-
     params = {
         "search": query,
         "per_page": max_results,
@@ -191,8 +160,6 @@ def _fetch_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     records = []
     for work in results:
         title = _clean(work.get("title", ""))
-
-        # Reconstruct abstract from inverted index
         abstract = ""
         inv = work.get("abstract_inverted_index")
         if inv and isinstance(inv, dict):
@@ -218,20 +185,15 @@ def _fetch_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     log.info(f"OpenAlex: retrieved {len(records)} records")
     return records
 
-
-# ─── Scoring Engine ───────────────────────────────────────────────────────────
-
-# Scoring weights (documented for transparency)
-_W_JACCARD = 0.40       # Semantic overlap with claim
-_W_POS_HIT = 0.12       # Per positive domain term (capped at 5)
-_W_LENS_HIT = 0.06      # Per lens term (capped at 3)
-_W_TITLE_BONUS = 0.08   # Per positive term in title (capped at 0.30)
-_W_NEG_PENALTY = 0.22   # Per negative term (capped at 5)
-_W_ABSTRACT_BONUS = 0.10  # Bonus if abstract available and has pos hits
+_W_JACCARD = 0.40
+_W_POS_HIT = 0.12
+_W_LENS_HIT = 0.06
+_W_TITLE_BONUS = 0.08
+_W_NEG_PENALTY = 0.22
+_W_ABSTRACT_BONUS = 0.10
 
 _DIRECT_HIT_THRESHOLD = 0.42
 _DIRECT_HIT_MIN_POS = 2
-
 
 def _score_record(
     record: Dict[str, Any],
@@ -240,7 +202,6 @@ def _score_record(
     lens: str,
     exclude_terms: str = "",
 ) -> Dict[str, Any]:
-    """Score a single record against claim, domain, and lens."""
     title = record.get("title", "")
     abstract = record.get("abstract", "")
     combined = f"{title}. {abstract}".lower()
@@ -258,12 +219,10 @@ def _score_record(
     neg_hits = _term_hits(combined, neg_terms + extra_neg)
     lens_hits = _term_hits(combined, l_terms)
 
-    # Title bonus
     title_lower = title.lower()
     title_bonus = sum(_W_TITLE_BONUS for t in pos_terms[:12] if t.lower() in title_lower)
     title_bonus = min(title_bonus, 0.30)
 
-    # Abstract bonus: reward records that have abstracts with domain matches
     abstract_bonus = 0.0
     if abstract and len(abstract) > 50:
         abs_pos = _term_hits(abstract.lower(), pos_terms)
@@ -274,14 +233,7 @@ def _score_record(
     lens_score = min(len(lens_hits), 3) * _W_LENS_HIT
     neg_penalty = min(len(neg_hits), 5) * _W_NEG_PENALTY
 
-    final = (
-        _W_JACCARD * sim
-        + pos_score
-        + lens_score
-        + title_bonus
-        + abstract_bonus
-        - neg_penalty
-    )
+    final = (_W_JACCARD * sim) + pos_score + lens_score + title_bonus + abstract_bonus - neg_penalty
     final = max(0.0, min(final, 1.0))
 
     is_direct = (
@@ -297,9 +249,6 @@ def _score_record(
         "is_direct_hit": is_direct,
     }
 
-
-# ─── Support Classification ──────────────────────────────────────────────────
-
 def _classify_support(scored: List[Dict[str, Any]]) -> str:
     if not scored:
         return "none"
@@ -314,7 +263,6 @@ def _classify_support(scored: List[Dict[str, Any]]) -> str:
     if top >= 0.15:
         return "limited"
     return "none"
-
 
 def _build_summary(scored: List[Dict[str, Any]], level: str) -> str:
     if not scored:
@@ -334,9 +282,6 @@ def _build_summary(scored: List[Dict[str, Any]], level: str) -> str:
     }
     return messages.get(level, "No meaningful relevance detected.")
 
-
-# ─── Main Entry Point ─────────────────────────────────────────────────────────
-
 def run_evidence_scan(
     query: str,
     source: str,
@@ -346,9 +291,6 @@ def run_evidence_scan(
     lens: str = "mechanism",
     exclude_terms: str = "",
 ) -> Dict[str, Any]:
-    """
-    Run a complete evidence scan: fetch → score → classify → summarize.
-    """
     src = (source or "Both").lower()
     log.info(f"Evidence scan: source={src}, preset={preset}, lens={lens}, max={max_results}")
 

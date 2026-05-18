@@ -1,6 +1,7 @@
+   
 # api.py
 """
-EcoSentia Evidence API — FastAPI backend.
+EcoSentia Evidence API - FastAPI backend.
 """
 
 import asyncio
@@ -30,15 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Thread pool for parallel lens scanning
 _executor = ThreadPoolExecutor(max_workers=3)
-
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _resolve_mode(payload: EvidencePayload) -> str:
     return (payload.domain_mode or payload.preset or "fog").strip().lower()
-
 
 def _build_query_from_payload(payload: EvidencePayload, lens_override: str = None) -> str:
     return build_refined_query(
@@ -54,9 +50,7 @@ def _build_query_from_payload(payload: EvidencePayload, lens_override: str = Non
         exclude_terms=payload.exclude_terms or "",
     )
 
-
 def _scan_single_lens(payload: EvidencePayload, lens: str, mode: str) -> Dict[str, Any]:
-    """Scan a single lens — used for parallel execution."""
     try:
         refined = _build_query_from_payload(payload, lens_override=lens)
         snapshot_raw = run_evidence_scan(
@@ -78,13 +72,9 @@ def _scan_single_lens(payload: EvidencePayload, lens: str, mode: str) -> Dict[st
         log.error(f"Lens scan error [{lens}]: {e}")
         return {"error": str(e), "support_level": "none", "detected_biases": [], "query_used": ""}
 
-
-# ─── Endpoints ────────────────────────────────────────────────────────────────
-
 @app.get("/health")
 def health():
     return {"ok": True, "service": "EcoSentia Evidence API", "version": "0.3"}
-
 
 @app.post("/evidence/refine-query")
 def refine_query(payload: EvidencePayload):
@@ -95,7 +85,6 @@ def refine_query(payload: EvidencePayload):
     except Exception as e:
         log.error(f"refine-query error: {e}")
         raise HTTPException(status_code=500, detail={"stage": "refine-query", "message": str(e)})
-
 
 @app.post("/evidence/scan")
 def scan(payload: EvidencePayload):
@@ -125,7 +114,6 @@ def scan(payload: EvidencePayload):
         log.error(f"scan error: {e}")
         raise HTTPException(status_code=500, detail={"stage": "scan", "message": str(e)})
 
-
 @app.post("/evidence/prompts")
 def prompts(payload: PromptPayload):
     try:
@@ -141,20 +129,14 @@ def prompts(payload: PromptPayload):
         log.error(f"prompts error: {e}")
         raise HTTPException(status_code=500, detail={"stage": "prompts", "message": str(e)})
 
-
 @app.post("/evidence/scan-all-lenses")
 async def scan_all_lenses(payload: EvidencePayload):
-    """
-    Scan all analytical lenses. Uses thread pool for partial parallelism.
-    Includes per-lens timeout protection.
-    """
     mode = _resolve_mode(payload)
     matrix: Dict[str, Any] = {}
     loop = asyncio.get_event_loop()
 
     log.info(f"Starting multi-lens scan for claim[:50]='{payload.claim[:50]}'")
 
-    # Run lens scans with concurrency (limited to 3 parallel to respect rate limits)
     futures = {
         lens: loop.run_in_executor(_executor, _scan_single_lens, payload, lens, mode)
         for lens in ALL_LENSES

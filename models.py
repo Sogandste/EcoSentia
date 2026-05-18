@@ -3,13 +3,12 @@
 Pydantic v2 models for API payloads and responses.
 """
 
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 VALID_LENSES = ("mechanism", "context", "scale", "manufacturability", "safety")
 VALID_SOURCES = ("Both", "PubMed", "OpenAlex")
 VALID_PRESETS = ("fog", "ev", "custom")
-
 
 class TopRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -22,7 +21,6 @@ class TopRecord(BaseModel):
     is_direct_hit: Optional[bool] = False
     matched_terms: List[str] = Field(default_factory=list)
 
-
 class SnapshotModel(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -32,7 +30,6 @@ class SnapshotModel(BaseModel):
     summary: str = "No summary available."
     top_titles: List[str] = Field(default_factory=list)
     top_records: List[TopRecord] = Field(default_factory=list)
-
 
 class EvidencePayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -68,7 +65,6 @@ class EvidencePayload(BaseModel):
             return "custom"
         return v
 
-
 class PromptPayload(BaseModel):
     preset: str
     lens: str
@@ -76,13 +72,10 @@ class PromptPayload(BaseModel):
     query_text: str
     snapshot: Dict[str, Any]
 
-
 class ScanResult(BaseModel):
-    """Response model for /evidence/scan."""
     ok: bool = True
     query_text: str
     snapshot: SnapshotModel
-
 
 class LensMatrixEntry(BaseModel):
     support_level: str = "none"

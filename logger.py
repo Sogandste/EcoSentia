@@ -8,7 +8,6 @@ import sys
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
 
-
 def get_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger = logging.getLogger(name)
     if not logger.handlers:
