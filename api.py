@@ -16,7 +16,7 @@ from models import EvidencePayload, PromptPayload, ScanResult, SnapshotModel
 from prompt_builder import build_evidence_aware_prompts
 from query_builder import build_refined_query
 
-APP_VERSION = "0.5.2-test"
+APP_VERSION = "0.5.1"
 SERVICE_NAME = "EcoSentia Evidence API"
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

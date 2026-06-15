@@ -375,6 +375,44 @@ li[role="option"] {{
   color: {theme['text']} !important;
 }}
 
+div[data-baseweb="select"] > div,
+div[data-baseweb="select"] > div > div,
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] div[value] {{
+  color: {theme['text']} !important;
+}}
+
+div[data-baseweb="popover"] li,
+div[data-baseweb="popover"] li *,
+li[role="option"],
+li[role="option"] * {{
+  color: {theme['text']} !important;
+  background: {theme['panel']} !important;
+}}
+
+/* hover و selected */
+li[role="option"]:hover,
+li[role="option"]:hover *,
+li[aria-selected="true"],
+li[aria-selected="true"] * {{
+  background: {theme['hover']} !important;
+  color: {theme['text']} !important;
+}}
+
+/* radio و horizontal options (Preset / Source) */
+div[role="radiogroup"] label,
+div[role="radiogroup"] label *,
+div[data-baseweb="radio"] *,
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] label * {{
+  color: {theme['text']} !important;
+}}
+
+/* slider label و مقادیر */
+[data-testid="stSlider"] label,
+[data-testid="stSlider"] * {{
+  color: {theme['text']} !important;
+}}
 li[role="option"]:hover,
 li[aria-selected="true"] {{
   background: {theme['hover']} !important;
