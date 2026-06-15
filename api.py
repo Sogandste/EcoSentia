@@ -16,12 +16,12 @@ from models import EvidencePayload, PromptPayload, ScanResult, SnapshotModel
 from prompt_builder import build_evidence_aware_prompts
 from query_builder import build_refined_query
 
-APP_VERSION = "0.5.1"
+APP_VERSION = "0.5.2-test"
 SERVICE_NAME = "EcoSentia Evidence API"
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-MAX_WORKERS = int(os.getenv("ECOSENTIA_MAX_WORKERS", "3"))
-LENS_SCAN_TIMEOUT = int(os.getenv("ECOSENTIA_LENS_TIMEOUT", "60"))
+MAX_WORKERS = int(os.getenv("ECOSENTIA_MAX_WORKERS", "5"))
+LENS_SCAN_TIMEOUT = int(os.getenv("ECOSENTIA_LENS_TIMEOUT", "180"))
 
 log = get_logger(__name__, level=LOG_LEVEL)
 
@@ -115,14 +115,22 @@ def _error_result(message: str) -> Dict[str, Any]:
     }
 
 
-def _scan_single_lens(payload: EvidencePayload, lens: str, mode: str) -> Dict[str, Any]:
+def _scan_single_lens(
+    payload: EvidencePayload,
+    lens: str,
+    mode: str,
+    shared_query: str | None = None,   
+) -> Dict[str, Any]:
     try:
-        refined_query = _build_query_from_payload(payload, lens_override=lens)
+        if shared_query:
+            refined_query = shared_query
+        else:
+            refined_query = _build_query_from_payload(payload, lens_override=lens)
 
         snapshot_raw = run_evidence_scan(
             query=refined_query,
             source=payload.source,
-            max_results=min(payload.max_results, 3),
+            max_results=payload.max_results,   
             claim_text=payload.claim,
             preset=mode,
             lens=lens,
@@ -276,6 +284,8 @@ async def scan_all_lenses(payload: EvidencePayload) -> Dict[str, Any]:
     mode = _resolve_mode(payload)
     matrix: Dict[str, Any] = {}
 
+    shared_query = (payload.query_text or "").strip() or _build_query_from_payload(payload)
+
     try:
         claim_preview = payload.claim[:80] if payload.claim else ""
         log.info(
@@ -285,7 +295,9 @@ async def scan_all_lenses(payload: EvidencePayload) -> Dict[str, Any]:
 
         loop = asyncio.get_running_loop()
         futures = {
-            lens: loop.run_in_executor(_executor, _scan_single_lens, payload, lens, mode)
+            lens: loop.run_in_executor(
+                _executor, _scan_single_lens, payload, lens, mode, shared_query  
+            )
             for lens in ALL_LENSES
         }
 
