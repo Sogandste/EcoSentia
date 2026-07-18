@@ -82,8 +82,6 @@ This distinction matters for reviewers, contributors, and users alike:
 | 🟨 **Simulate** | Promising, but requires modeling, prototyping, or additional evidence before responsible advancement. |
 | 🟥 **AI Blindspot** | Interrogation reveals major omissions — superficial analogy, missing mechanism, lost context, scale neglect, or unsupported confidence. |
 
-*(Color blocks above indicate semantic state only; no emoji icons are used elsewhere in this framework.)*
-
 ---
 
 ## The Five Analytical Lenses
