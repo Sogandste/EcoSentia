@@ -1,722 +1,638 @@
+<div align="center">
 
 # EcoSentia
 
-### A human-centric framework for evidence-aware AI-assisted biomimicry design
-
-**Structuring human judgment where artificial intelligence meets biomimetic design**
+### A Human-Centric Governance Framework for Evidence-Aware AI-Assisted Biomimetic Design
 
 <br>
 
-[![Framework](https://img.shields.io/badge/Framework-Human--Centric-e59aa5?style=for-the-badge&labelColor=343840)](#the-ecosentia-framework)
-[![Approach](https://img.shields.io/badge/Approach-Evidence--Aware-ebb184?style=for-the-badge&labelColor=343840)](#research-foundation)
-[![Application](https://img.shields.io/badge/Application-EcoSentia%20Checkpoint-e3a377?style=for-the-badge&labelColor=343840)](#ecosentia-checkpoint)
+[![Framework](https://img.shields.io/badge/Framework-Human--Centric-e59aa5?style=for-the-badge)](#ecosentia-framework)
+[![Evidence](https://img.shields.io/badge/Evidence-PubMed%20%7C%20OpenAlex-ebb184?style=for-the-badge)](#evidence-interpretation)
+[![Lenses](https://img.shields.io/badge/Analytical%20Lenses-Five-e3a377?style=for-the-badge)](#five-analytical-lenses)
+[![Status](https://img.shields.io/badge/Status-Research%20Prototype-c2c9d4?style=for-the-badge)](#research-status)
+[![License](https://img.shields.io/badge/License-MIT-d9dde5?style=for-the-badge)](#license)
 
 <br>
 
-[Launch EcoSentia Checkpoint](https://huggingface.co/spaces/sogi23/EcoSentia) ·
-[Explore the Framework](#the-ecosentia-framework) ·
-[Review the Research Design](#research-design)
+**Evaluate evidence. Expose assumptions. Map uncertainty. Retain human judgment.**
+
+<br>
+
+[Access the Checkpoint](https://huggingface.co/spaces/Sogandste/EcoSentia)
+&nbsp;&nbsp;·&nbsp;&nbsp;
+[Explore the Repository](https://github.com/Sogandste/EcoSentia)
+&nbsp;&nbsp;·&nbsp;&nbsp;
+[Report an Issue](https://github.com/Sogandste/EcoSentia/issues)
 
 </div>
 
 ---
 
-## Overview
+## EcoSentia Framework
 
-Artificial intelligence can accelerate biological discovery, analogy generation, abstraction, and design exploration. Yet fluent AI-generated suggestions may appear scientifically convincing while concealing weak mechanisms, missing biological context, scale incompatibilities, unrealistic manufacturing assumptions, or unexamined safety concerns.
+EcoSentia is a human-centric governance framework for critically examining
+AI-generated biomimetic design claims before they are interpreted as
+scientifically grounded, functionally validated, or design-ready.
 
-**EcoSentia** is a human-centric governance framework developed to address this challenge.
+Its software implementation, the **EcoSentia Checkpoint**, introduces
+structured cognitive friction into AI-assisted biomimetic reasoning. It helps
+users retrieve related literature, inspect evidence signals, identify
+translation risks, map uncertainty, and refine claims while keeping final
+interpretation under accountable human judgment.
 
-Rather than treating AI as an autonomous design authority, EcoSentia structures how designers and researchers interrogate, contextualize, and remain accountable for AI-assisted biomimetic reasoning. It transforms the broad principle of “human-in-the-loop” into an explicit model of:
-
-- reasoning pathways;
-- analytical interrogation;
-- phase-specific human oversight;
-- responsibility allocation; and
-- evidence-aware claim evaluation.
-
-The framework is operationalized through **EcoSentia Checkpoint**, a lightweight public web application that introduces structured epistemic friction before an AI-assisted biomimetic claim is advanced toward simulation, prototyping, experimentation, or implementation.
-
-> EcoSentia does not replace biological expertise, engineering validation, or ethical judgment. It structures the reasoning through which those forms of judgment are applied.
+> EcoSentia does not determine whether a biomimetic claim is true. It structures
+> the questions, evidence, risks, and uncertainties that humans should examine
+> before acting on that claim.
 
 ---
 
-## The Challenge
+## Why EcoSentia?
 
-Biomimetic design requires the translation of biological strategies into engineering principles. This process is inherently difficult because biological functions are:
+AI systems can rapidly produce convincing biological analogies and design
+proposals. Fluency, however, may conceal important limitations:
 
-- embedded in specific ecological and physiological contexts;
-- shaped by scale-dependent physical constraints;
-- often supported by incomplete or fragmented evidence;
-- difficult to abstract without losing causal mechanisms; and
-- not automatically transferable to engineered or biomedical systems.
+| Potential limitation | Critical question |
+|:---|:---|
+| Biological resemblance without mechanism | Does the proposed function follow from an identified mechanism? |
+| Incomplete evidence alignment | Do the retrieved studies directly support the evaluated claim? |
+| Context omission | Will the biological strategy remain meaningful outside its original conditions? |
+| Scale-dependent failure | Does the principle survive transfer across spatial, temporal, or organizational scales? |
+| Manufacturing assumptions | Can the concept be fabricated reproducibly and maintained in practice? |
+| Safety silence | Are biological, environmental, clinical, or regulatory risks acknowledged? |
 
-AI can reduce some of these barriers, but it also introduces new risks. A model may generate a plausible analogy without establishing that:
-
-1. the biological mechanism is correctly understood;
-2. the mechanism is relevant to the intended application;
-3. the required context can be preserved;
-4. the abstraction remains valid across scales;
-5. the concept can be manufactured or implemented; or
-6. its safety implications have been adequately considered.
-
-EcoSentia responds by introducing a governance layer around AI-assisted biomimetic design.
+EcoSentia makes these issues visible before an AI-generated statement is treated
+as a validated design proposition.
 
 ---
 
-## Core Principle
+## Checkpoint Workflow
 
-### Structured Epistemic Friction
+The EcoSentia Checkpoint implements a five-step evaluation pipeline.
 
-Most AI interfaces are designed to produce fast, fluent, and frictionless answers. EcoSentia deliberately interrupts this pattern.
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Times New Roman, serif",
+    "primaryTextColor": "#20242b",
+    "lineColor": "#8f98a6",
+    "tertiaryColor": "#ffffff"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true
+  }
+}}%%
 
-**Structured epistemic friction** requires a designer to pause, classify, retrieve evidence, examine assumptions, map uncertainty, and challenge a suggestion before treating it as design-ready.
+flowchart LR
+    C["Biomimetic<br/>Claim"] --> P["1. Pathway<br/>Classification"]
+    P --> E["2. Evidence<br/>Retrieval"]
+    E --> S["3. Support-Level<br/>Summary"]
+    S --> R["4. Multi-Lens<br/>Risk Screening"]
+    R --> H["5. Structured Human<br/>Interrogation"]
+    H --> O["Evidence-Aware<br/>Claim"]
 
-This friction is not an inefficiency. It is a safeguard against:
+    style C fill:#d9dde5,stroke:#8f98a6,stroke-width:2px,color:#20242b
+    style P fill:#e59aa5,stroke:#b66f7a,stroke-width:2px,color:#20242b
+    style E fill:#ebb184,stroke:#be8053,stroke-width:2px,color:#20242b
+    style S fill:#e3a377,stroke:#b87547,stroke-width:2px,color:#20242b
+    style R fill:#c2c9d4,stroke:#8f98a6,stroke-width:2px,color:#20242b
+    style H fill:#e59aa5,stroke:#b66f7a,stroke-width:2px,color:#20242b
+    style O fill:#d9dde5,stroke:#8f98a6,stroke-width:2px,color:#20242b
+```
 
-- superficial biological analogies;
-- form–function confusion;
-- unsupported cross-domain transfer;
-- automation bias;
-- cognitive offloading;
-- agreeable but weak AI responses; and
-- premature confidence in implementation readiness.
+### 1. Pathway Classification
 
----
+Classifies the claim according to its apparent biomimetic reasoning pathway and
+identifies the assumptions that require closer examination.
 
-# The EcoSentia Framework
+### 2. Evidence Retrieval
 
-EcoSentia extends established biomimetic design processes through four interconnected governance components:
+Retrieves related scientific records through **PubMed** and **OpenAlex** to
+provide broad, cross-disciplinary literature coverage.
 
-| Component | Function |
-|---|---|
-| **Three Reasoning Pathways** | Describe how biological knowledge, design problems, and AI interact |
-| **Five Analytical Lenses** | Expose hidden assumptions and translation risks |
-| **Five Human Governance Roles** | Specify the form of oversight required at each design phase |
-| **Three Responsibility Zones** | Clarify what may be automated, collaboratively performed, or retained under human control |
+### 3. Support-Level Summary
 
-Together, these components provide a phase-sensitive structure for reasoning and responsibility in AI-assisted biomimetic design.
+Summarizes the volume and recency of related literature as a navigational
+signal. The support level does not measure scientific validity, study quality,
+functional performance, or safety.
 
----
+### 4. Multi-Lens Risk Screening
 
-## Three Reasoning Pathways
+Screens the claim through five analytical lenses to identify characteristic
+translation risks requiring human review.
 
-EcoSentia distinguishes three directions of biomimetic reasoning.
+### 5. Structured Human Interrogation
 
-| Pathway | Direction | Primary Risk |
-|---|---|---|
-| **Reverse** | Problem → Biology | Shallow matching to familiar or semantically obvious organisms |
-| **Forward** | Biology → Application | Unsupported transfer of biological properties into new contexts |
-| **Generative / Co-Creative** | Human–AI Iteration | Fluent synthesis without sufficient mechanistic grounding |
-
-### Reverse Pathway
-
-The reverse pathway begins with a human or engineering problem and searches for relevant biological strategies.
-
-AI may assist with functional reframing, search-term expansion, and biological analogy retrieval. The dominant risk is **shallow matching**, where familiar examples are suggested without demonstrating that their underlying mechanisms are relevant or transferable.
-
-### Forward Pathway
-
-The forward pathway begins with an observed biological feature or mechanism and explores potential applications.
-
-The main risk is **over-transfer**: extending a biological property into an engineering, material, or biomedical context without adequately considering mechanism, context, scale, manufacturability, or safety.
-
-### Generative / Co-Creative Pathway
-
-The generative pathway involves iterative human–AI exploration in which candidate concepts are proposed, compared, challenged, and refined.
-
-Its dominant risk is **rhetorically smooth synthesis**: combining biological and engineering terminology into concepts that sound coherent but lack a defensible mechanistic basis.
-
-These pathways are not mutually exclusive. A project may move between them as its problem definition, evidence base, and design concept evolve.
+Generates prompts for evaluation, counter-analysis, uncertainty mapping, and
+claim redesign.
 
 ---
 
 ## Five Analytical Lenses
 
-EcoSentia interrogates biomimetic claims through five complementary lenses.
+| Lens | What it examines | Representative concern |
+|:---|:---|:---|
+| **Mechanism** | Whether the proposed function is connected to an identified biological or engineering mechanism | Form is transferred without causal explanation |
+| **Context** | Whether ecological, physiological, environmental, and operational conditions are considered | A biological strategy is removed from the conditions enabling it |
+| **Scale** | Whether the principle remains meaningful across spatial, temporal, material, or organizational scales | Scale-dependent behavior is assumed to remain unchanged |
+| **Manufacturability** | Whether fabrication, reproducibility, durability, maintenance, and deployment are acknowledged | Practical implementation is implied without fabrication evidence |
+| **Safety** | Whether biological, environmental, toxicological, clinical, ethical, and regulatory concerns are addressed | High-impact applications are described without relevant safety boundaries |
 
-| Lens | Central Question |
-|---|---|
-| **Mechanism** | Is the proposed function supported by an identifiable and transferable biological mechanism, or only by surface resemblance? |
-| **Context** | Have the ecological, physiological, environmental, and application-specific conditions enabling the function been considered? |
-| **Scale** | Does the mechanism remain physically plausible across biological and engineering scales? |
-| **Manufacturability** | Can the proposed system be fabricated, reproduced, sourced, maintained, and implemented realistically? |
-| **Safety** | Have potential harms, unintended effects, and domain-specific ethical concerns been identified? |
-
-The lenses are not automated pass/fail criteria. They are structured instruments for exposing assumptions that may otherwise remain hidden within a fluent design narrative.
-
----
-
-## Five Human Governance Roles
-
-EcoSentia makes human oversight explicit by assigning a governance role to each major phase of the biomimetic design process.
-
-| Design Phase | Human Governance Role | Core Responsibility | Primary Lens |
-|---|---|---|---|
-| **Define & Biologize** | **Context Detective** | Examines framing, stakeholder needs, contextual suitability, and success criteria | Context |
-| **Discover & Ideate** | **Causality Judge** | Distinguishes functional mechanisms from superficial similarity or correlation | Mechanism |
-| **Abstract & Parameterize** | **Physics Attorney** | Stress-tests abstractions against physical law and scale-dependent constraints | Scale |
-| **Emulate & Synthesize** | **Stewardship Guardian** | Examines fabrication, sourcing, sustainability, circularity, and systemic effects | Manufacturability |
-| **Evaluate & Iterate** | **Ethical Interpreter** | Interprets performance alongside safety, uncertainty, and social or ecological consequences | Safety |
-
-These roles specify the type of critical judgment required at each phase. They are not automated agents and do not transfer responsibility from the designer to the system.
+These lenses are diagnostic structures for human reasoning. They are not
+automated validation criteria.
 
 ---
 
-## Three Responsibility Zones
+## Translation-Risk Flags
 
-EcoSentia distinguishes three levels of appropriate AI involvement.
+The Checkpoint uses rule-based screening to identify issues that may be hidden
+by confident or oversimplified language.
 
-### Automation Zone
+| Risk flag | Interpretation |
+|:---|:---|
+| **Morphology Overreach** | Visible biological form or surface resemblance is treated as sufficient evidence of functional transfer |
+| **Mechanism Gap** | The claimed outcome is not adequately connected to a defined mechanism |
+| **Context Transfer Risk** | Relevant biological, environmental, physiological, or operational conditions are omitted |
+| **Scale Neglect** | The claim assumes transfer across scales without examining scale-dependent constraints |
+| **Manufacturability Assumption** | Fabrication, reproducibility, durability, maintenance, or cost is implied rather than demonstrated |
+| **Safety Silence** | Relevant toxicity, exposure, immune, environmental, ethical, or regulatory concerns are not addressed |
 
-Suitable for bounded, comparatively low-risk tasks such as:
+A flag indicates a question requiring investigation. It does not prove that a
+claim is incorrect.
 
-- search-term expansion;
-- preliminary literature retrieval;
-- metadata organization;
-- summarization; and
-- output formatting.
-
-Human verification remains necessary.
-
-### Collaboration Zone
-
-Suitable for iterative tasks such as:
-
-- refining claims;
-- comparing biological analogies;
-- generating alternative interpretations;
-- identifying missing information; and
-- developing follow-up questions.
-
-AI may act as a cognitive collaborator, but not as an authority.
-
-### Human-Judgment Zone
-
-Reserved for decisions involving:
-
-- biological transferability;
-- interpretation of conflicting evidence;
-- physical feasibility;
-- safety;
-- ethical and ecological trade-offs;
-- implementation readiness; and
-- final go/no-go decisions.
-
-As a concept moves closer to physical implementation, safety consequences, or normative trade-offs, responsibility shifts increasingly toward human judgment.
+The absence of a flag does not establish scientific validity, feasibility, or
+safety.
 
 ---
 
-# EcoSentia Checkpoint
+## Structured Prompt Outputs
 
-**EcoSentia Checkpoint** is the operational implementation of the framework.
+For each evaluated claim, the Checkpoint generates four complementary prompt
+types.
 
-The application converts a biomimetic design claim into a structured, evidence-aware interrogation workflow.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-<div align="center">
+### Evaluation
 
-**Design Claim → Pathway Classification → Evidence Retrieval → Support Summarization → Risk Screening → Structured Prompts → Human Interpretation**
+Examines evidence alignment, mechanism, context, assumptions, and limitations.
 
-</div>
+</td>
+<td width="50%" valign="top">
 
-## Checkpoint Workflow
+### Counter-Prompt
 
-### 1. Pathway Classification
+Challenges the claim through failure modes, contradictory evidence, and
+alternative explanations.
 
-The claim is examined according to its primary reasoning direction:
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-- Reverse;
-- Forward; or
-- Generative / Co-Creative.
+### Uncertainty Mapping
 
-This classification helps identify the characteristic translation risks associated with the claim.
+Separates established evidence from inference, unresolved assumptions, and
+speculative extension.
 
-### 2. Evidence Retrieval
+</td>
+<td width="50%" valign="top">
 
-Checkpoint retrieves related bibliographic records from:
+### Redesign
 
-- **PubMed**
-- **OpenAlex**
+Reformulates the claim into a more specific, evidence-aware, risk-explicit, and
+responsibly bounded statement.
 
-Broad-coverage sources are used because evidence relevant to AI-assisted biomimetics is distributed across biological, biomedical, engineering, computational, and design-oriented knowledge bases.
+</td>
+</tr>
+</table>
 
-### 3. Support-Level Summarization
-
-Retrieved records are summarized through a heuristic support-level indicator based primarily on the volume and recency of related literature.
-
-The indicator is intended to support navigation. It does **not** measure scientific validity, study quality, causal strength, functional performance, manufacturability, safety, or implementation readiness.
-
-### 4. Lens-Tied Risk Screening
-
-Transparent rule-based screening identifies possible translation risks associated with the five analytical lenses, including:
-
-- morphology or form overreach;
-- mechanism gaps;
-- context-transfer risk;
-- scale neglect;
-- manufacturability assumptions;
-- property overreach; and
-- safety silence.
-
-Risk flags indicate where closer human examination is required. They are not definitive judgments that a claim is valid or invalid.
-
-### 5. Structured Prompt Generation
-
-Checkpoint generates four forms of interrogation prompt:
-
-| Prompt | Purpose |
-|---|---|
-| **Evaluation Prompt** | Examines the current basis and limitations of the claim |
-| **Counter-Prompt** | Elicits failure modes, disconfirming evidence, and alternative explanations |
-| **Uncertainty-Mapping Prompt** | Makes unresolved assumptions and evidence gaps explicit |
-| **Redesign Prompt** | Supports revision toward a more bounded and testable claim |
-
-The counter-prompt reflects EcoSentia’s **productive adversary** stance: AI-assisted reasoning should not merely confirm a proposed idea but actively test where and why it may fail.
-
-<br>
-
-<div align="center">
-
-[![Launch Checkpoint](https://img.shields.io/badge/Launch-EcoSentia%20Checkpoint-e59aa5?style=for-the-badge&labelColor=343840)](https://huggingface.co/spaces/sogi23/EcoSentia)
-
-</div>
+Together, these outputs position AI as a **productive adversary** rather than an
+automatic scientific authority.
 
 ---
 
-## Provisional Reasoning States
+## Interpretation States
 
-Following structured interrogation, a claim may be described through one of three provisional reasoning states.
+Checkpoint outputs can be organized into three human-readable states.
 
-| State | Interpretation |
-|---|---|
-| **Grounded** | The claim has a reasonably articulated mechanism, relevant context, and preliminary evidence suitable for further investigation |
-| **Simulate** | The claim remains promising but requires additional modeling, evidence, comparison, or experimental planning |
-| **AI Blindspot** | The claim contains major unresolved omissions, unsupported transfer, superficial analogy, or unjustified confidence |
+| State | Meaning | Required interpretation |
+|:---|:---|:---|
+| **Grounded** | The claim shows comparatively stronger alignment with retrieved literature and makes relevant mechanisms and boundaries more explicit | Grounded does not mean experimentally validated |
+| **Simulate** | The claim may support structured exploration but retains important assumptions or unresolved uncertainties | Further analysis and testing are required |
+| **AI Blindspot** | Major evidentiary, mechanistic, contextual, manufacturing, or safety omissions may be hidden by fluent AI language | The claim requires substantial human interrogation |
 
-These states describe the current maturity of the reasoning surrounding a claim.
-
-They are not:
-
-- scientific validation outcomes;
-- experimental findings;
-- clinical conclusions;
-- safety certifications;
-- readiness-level measurements; or
-- automated go/no-go decisions.
-
-A claim described as **Grounded** has undergone structured scrutiny, but it has not been proven functionally successful or safe.
+These states support deliberation and prioritization. They are not scientific
+verdicts or readiness classifications.
 
 ---
 
-# Research Foundation
+## Demonstration Cases
 
-EcoSentia was developed through a convergent three-strand research design:
+### Passive Fog Harvesting
 
-1. **Bibliometric field diagnosis**
-2. **Design-science framework and artifact development**
-3. **Formative evaluation through demonstration cases and expert assessment**
+Evaluation of water-harvesting concepts inspired by biological systems such as
+the Namib Desert beetle and cactus spines.
 
-Each strand has a distinct epistemic role. The bibliometric analysis motivates the governance problem; the framework and application constitute the proposed response; and the evaluative strand examines intelligibility, usefulness, and critical-reasoning support.
+**Primary analytical concerns**
 
----
+- Surface morphology and wettability
+- Droplet nucleation and directional transport
+- Environmental and operational context
+- Morphology-to-mechanism correspondence
+- Fabrication, durability, and deployment constraints
 
-## Bibliometric Field Diagnosis
+The literature may support individual biological or physical principles without
+validating the functional success of a complete engineered system.
 
-The research includes a bibliometric analysis of **6,698 publications from 2015 to 2025** at the intersection of artificial intelligence and biomimetics.
+### Extracellular-Vesicle-Inspired Nanomedicine
 
-Records were retrieved from:
+Evaluation of extracellular-vesicle-inspired systems proposed for targeted drug
+delivery in inflammatory disease.
 
-- Web of Science Core Collection;
-- Scopus.
+**Primary analytical concerns**
 
-The analysis examines:
+- Biological source and composition
+- Targeting mechanism
+- Cargo loading and release
+- Biodistribution and immune interaction
+- Toxicity and biological safety
+- Manufacturing reproducibility
+- Translational and regulatory constraints
 
-- annual scientific production;
-- citation patterns;
-- source distribution;
-- geographic contribution;
-- international collaboration;
-- keyword frequency and co-occurrence;
-- thematic structure;
-- governance-related vocabulary; and
-- reference co-citation networks.
+Related literature does not independently establish clinical efficacy, clinical
+safety, or therapeutic readiness.
 
-The analysis identifies rapid growth around optimization, deep learning, and neuromorphic or hardware-oriented approaches. It also indicates that explicit governance terminology remains comparatively limited within the field’s indexed vocabulary.
+### Additional Evaluation Claims
 
-Reference co-citation analysis identifies three loosely connected intellectual domains:
+The framework can also be tested using claims involving:
 
-1. metaheuristic optimization;
-2. deep learning; and
-3. neuromorphic and hardware biomimetics.
+- Synapse-inspired neuromorphic control for soft robotics
+- Unicorn-horn-inspired spontaneous energy generation
+- Shark-skin-inspired drag-reducing surfaces
 
-These findings motivate a framework that is:
-
-- paradigm-agnostic;
-- interpretive rather than primarily generative;
-- sensitive to cross-domain transfer;
-- explicit about human responsibility; and
-- applicable across fragmented knowledge bases.
-
-The bibliometric evidence motivates EcoSentia but does not independently validate the framework or application.
+These claims enable examination of mechanism gaps, unsupported extrapolation,
+context transfer, manufacturability assumptions, and safety silence across
+different domains.
 
 ---
 
-## Design-Science Implementation
+## Evidence Interpretation
 
-The conceptual framework was translated into EcoSentia Checkpoint as a functioning research artifact.
+The Checkpoint retrieves related records and summarizes evidence signals to
+support navigation and critical review.
 
-The implementation connects field-level observations to concrete design decisions:
+### What the support level represents
 
-| Field-Level Observation | Checkpoint Design Response |
-|---|---|
-| Fragmented knowledge bases | Broad-coverage retrieval through PubMed and OpenAlex |
-| Risk of cross-paradigm transfer | Paradigm-agnostic analytical lenses |
-| Growth in publication volume | Structured evidence summarization |
-| Difference between evidence volume and validity | Deliberately modest support-level indicator |
-| Risk of agreeable AI responses | Adversarial counter-prompts |
-| Limited operational governance language | Explicit roles and responsibility zones |
+The support-level heuristic primarily reflects:
 
-Checkpoint is therefore designed as a governance instrument rather than a content-generation authority.
+- The number of retrieved records
+- The number of apparently direct matches
+- The recency of related publications
+- The available literature under the selected search parameters
 
----
+### What the support level does not represent
 
-## Demonstration Scope
+It does not independently measure:
 
-Checkpoint has been applied to a deliberately varied set of biomimetic claims, including:
+- Scientific validity
+- Methodological quality
+- Causal accuracy
+- Experimental reproducibility
+- Functional performance
+- Prototype readiness
+- Clinical effectiveness
+- Safety
+- Regulatory acceptability
 
-- passive fog harvesting inspired by desert organisms;
-- extracellular-vesicle-inspired targeted drug delivery;
-- mantis-shrimp-inspired impact-resistant structures;
-- mosquito-proboscis-inspired microneedle systems;
-- neuromorphic control for soft robotics;
-- a form-only shark-skin-inspired surface claim; and
-- an implausible negative-control claim.
+A large number of related publications does not validate the evaluated claim.
+A small number of retrieved records does not prove that the claim is false.
 
-These cases span a gradient from well-studied to niche, cross-paradigm, form-only, and implausible claims.
-
-The purpose of these demonstrations is to examine whether Checkpoint:
-
-- responds differently to claims with different evidence profiles;
-- identifies domain-specific translation risks;
-- avoids uniformly endorsing submitted claims;
-- exposes mechanism, context, scale, manufacturing, and safety gaps; and
-- generates useful directions for further human investigation.
-
-The demonstrations do not establish functional success, manufacturability, safety, therapeutic efficacy, or clinical validity.
+Search results may vary because of query construction, terminology, database
+coverage, metadata quality, indexing updates, API availability, retrieval date,
+and result limits.
 
 ---
 
-## Formative Evaluation
+## Reproducible Evaluation
 
-EcoSentia and its Checkpoint are intended for formative assessment across relevant disciplinary backgrounds, including:
+For each reported run, record the following information:
 
-- biomimicry;
-- design;
-- engineering;
-- computational biology;
-- biomedical research; and
-- related interdisciplinary fields.
+- Complete input claim
+- Biological model
+- Application context
+- Target function
+- Mechanism keywords
+- Excluded terms
+- Selected pathway or preset
+- Data sources
+- Maximum results per source
+- Retrieval date and time
+- Total retrieved records
+- Direct matches
+- Support-level output
+- Flagged risks
+- Top retrieved records
+- Relevant exported outputs or time-stamped screenshots
 
-Evaluation focuses on:
+For comparative analyses, runs should use the same retrieval settings unless a
+difference is explicitly reported as a sensitivity analysis.
 
-- conceptual clarity;
-- practical usefulness;
-- support for critical reasoning;
-- transparency;
-- educational potential; and
-- the ability to expose assumptions and uncertainty.
-
-This evaluation is formative rather than summative. It does not constitute experimental, clinical, or regulatory validation.
-
----
-
-# How to Interpret Checkpoint Outputs
-
-Checkpoint outputs are navigational and interpretive aids.
-
-They should not be treated as substitutes for:
-
-- full systematic or scoping reviews;
-- critical appraisal of individual studies;
-- biological or mechanistic expertise;
-- computational modeling;
-- physical simulation;
-- laboratory experimentation;
-- prototype testing;
-- toxicological or clinical evaluation;
-- engineering verification;
-- ethical review; or
-- regulatory assessment.
-
-The support-level indicator reflects the proximity, quantity, and recency of retrieved literature. A high support level does not mean that a proposed design is valid, safe, transferable, or ready for implementation.
-
-Similarly, a low support level may reflect:
-
-- genuinely limited evidence;
-- emerging terminology;
-- an overly narrow query;
-- differences in disciplinary language;
-- incomplete indexing; or
-- a highly novel claim.
-
-All outputs require human interpretation.
+External search results may change over time as PubMed and OpenAlex update their
+records and indexing systems.
 
 ---
 
-# Research Design
+## Research Design
+
+EcoSentia is developed through a convergent three-strand research design:
+
+1. **Bibliometric analysis**  
+   Mapping research patterns at the intersection of artificial intelligence
+   and biomimetics.
+
+2. **Design-science artifact implementation**  
+   Translating the governance framework into the EcoSentia Checkpoint.
+
+3. **Expert formative evaluation**  
+   Examining clarity, usefulness, critical-reasoning support, interpretability,
+   usability, and educational potential.
+
+Expert feedback supports iterative refinement of the artifact. It does not
+constitute experimental, clinical, safety, or regulatory validation.
+
+---
+
+## Two-Layer Architecture
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Times New Roman, serif",
+    "primaryTextColor": "#20242b",
+    "lineColor": "#8f98a6"
+  }
+}}%%
+
+flowchart TB
+    G["Governance Layer<br/><b>EcoSentia Checkpoint</b><br/>Questions · Boundaries · Risks · Human Judgment"]
+    X["Execution Layer<br/><b>Specialized Domain Tools</b><br/>Retrieval · Processing · Analysis · Visualization"]
+    D["Accountable Human Decision"]
+
+    X --> G
+    G --> D
+
+    style G fill:#e59aa5,stroke:#b66f7a,stroke-width:2px,color:#20242b
+    style X fill:#ebb184,stroke:#be8053,stroke-width:2px,color:#20242b
+    style D fill:#c2c9d4,stroke:#8f98a6,stroke-width:2px,color:#20242b
+```
+
+The execution layer retrieves and processes information. The governance layer
+structures how outputs should be questioned, bounded, interpreted, and
+documented.
+
+Neither layer independently determines whether a claim is valid or ready for
+implementation.
+
+---
+
+## Intended Users
+
+EcoSentia is designed for:
+
+- Biomimetic researchers
+- Designers and engineers
+- Computational biologists
+- Interdisciplinary research teams
+- Educators and students
+- Scientific reviewers
+- Developers of responsible AI tools
+
+It is particularly relevant when AI-generated language appears more certain
+than the available evidence permits.
+
+---
+
+## Appropriate Use
+
+EcoSentia can support:
+
+- Critical evaluation of AI-generated biomimetic claims
+- Broad literature retrieval
+- Identification of assumptions and evidence gaps
+- Screening for characteristic translation risks
+- Structured interdisciplinary discussion
+- Refinement of early-stage claims
+- Documentation of human-led reasoning
+- Teaching and formative evaluation
+- Comparison of claims under consistent settings
+
+---
+
+## Limitations and Prohibited Interpretation
+
+EcoSentia must not be used to:
+
+- Present speculative claims as validated findings
+- Replace expert scientific review
+- Infer validity from publication volume
+- Treat a risk flag as proof that a claim is false
+- Treat the absence of a flag as evidence of safety
+- Present a Grounded state as experimental validation
+- Claim prototype readiness without physical evaluation
+- Claim clinical efficacy without appropriate clinical evidence
+- Make autonomous clinical, safety, or regulatory decisions
+- Advance high-stakes claims without relevant domain expertise
+
+Rule-based screening may produce false positives or false negatives. Literature
+retrieval may omit relevant studies or return indirectly related records.
+Outputs therefore require inspection and expert interpretation.
+
+---
+
+## Local Installation
+
+### Clone the repository
+
+```bash
+git clone https://github.com/Sogandste/EcoSentia.git
+cd EcoSentia
+```
+
+### Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+### Activate the environment
+
+**macOS or Linux**
+
+```bash
+source .venv/bin/activate
+```
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+### Install the dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run the application
+
+```bash
+python app.py
+```
+
+The local address will be displayed in the terminal after the application
+starts.
+
+---
+
+## Configuration and API Use
+
+The Checkpoint may access external literature services, including PubMed and
+OpenAlex.
+
+Users should:
+
+- Keep API keys outside the source code
+- Use environment variables or secure platform secrets
+- Never commit private credentials
+- Document retrieval parameters used in reported analyses
+- Consider API availability and indexing changes when interpreting results
+- Review database usage policies and request limits
+
+---
+
+## Repository Structure
 
 ```text
-Bibliometric Field Diagnosis
-            │
-            ▼
-Identification of Governance Requirements
-            │
-            ▼
-EcoSentia Framework Development
-            │
-            ▼
-EcoSentia Checkpoint Implementation
-            │
-            ▼
-Demonstration and Formative Evaluation
-    
-    
-  
-  
-The three research strands answer complementary questions:
+EcoSentia/
+├── app.py
+├── requirements.txt
+├── README.md
+├── LICENSE
+├── assets/
+├── Bibliometric/
+└── supporting-materials/
+```
 
-Strand	 | 	Research Question
-----------------------------
-Bibliometric Analysis	 | 	What characterizes the field, and which governance-related gaps are visible at the literature level?
-Design Science	 | 	How can human oversight be operationalized as a functioning governance artifact?
-Formative Evaluation	 | 	Is the resulting framework intelligible, useful, and supportive of critical reasoning?
-The strands are sequential in justification but do not carry equal epistemic meaning. Bibliometric findings motivate the artifact; they do not validate it. Formative assessment examines usability and conceptual value; it does not establish scientific or functional effectiveness.
+Repository contents may evolve as the software, analyses, documentation, and
+reproducibility materials are refined.
 
+---
 
-Intended Users
+## Research Status
 
-EcoSentia is intended for:
+[![Manuscript](https://img.shields.io/badge/Manuscript-Not%20Yet%20Published-e59aa5?style=flat-square)](#research-status)
+[![Validation](https://img.shields.io/badge/Validation-Formative%20Research-ebb184?style=flat-square)](#research-status)
+[![Development](https://img.shields.io/badge/Development-Active-c2c9d4?style=flat-square)](#research-status)
 
+EcoSentia is an active research project. The associated manuscript has not yet
+been published.
 
-biomimetic and bio-inspired design researchers;
+This repository should be interpreted as a research implementation rather than
+a validated scientific, engineering, clinical, or regulatory system.
 
-engineers and materials scientists;
+No physical prototype, wet-lab validation, animal validation, clinical
+validation, or regulatory approval is claimed.
 
-computational biologists;
+The interface, retrieval behavior, screening logic, documentation, and
+supporting materials may change during continued development and evaluation.
 
-biomedical researchers;
+---
 
-design educators and students;
+## Citation
 
-researchers using generative AI during early-stage ideation;
-
-reviewers assessing AI-assisted biomimetic claims; and
-
-developers of evidence-aware design-support systems.
-
-
-
-Appropriate Uses
-
-EcoSentia may support:
-
-
-early-stage interrogation of biomimetic claims;
-
-identification of hidden assumptions;
-
-comparison of biological analogies;
-
-preliminary evidence navigation;
-
-discussion of mechanism and transferability;
-
-mapping of uncertainty;
-
-development of stronger research questions;
-
-refinement of overextended claims;
-
-design education; and
-
-documentation of human reasoning around AI-generated suggestions.
-
-
-Inappropriate Uses
-
-EcoSentia should not be used as:
-
-
-an automated scientific validator;
-
-a substitute for domain expertise;
-
-a clinical decision-support system;
-
-a safety-certification tool;
-
-a regulatory approval system;
-
-an automated design authority;
-
-proof of biological transferability; or
-
-evidence that a concept will succeed experimentally.
-
-
-
-Reproducibility
-
-The repository documents the computational and methodological components associated with the EcoSentia research project.
-
-The bibliometric workflow includes:
-
-
-Web of Science and Scopus data import;
-
-hierarchical deduplication;
-
-metadata quality-control audits;
-
-exclusion of incomplete 2026 indexing;
-
-keyword cleaning and harmonization;
-
-annual production and citation analysis;
-
-thematic mapping;
-
-keyword co-occurrence analysis;
-
-governance-vocabulary auditing;
-
-country and collaboration analysis;
-
-reference co-citation analysis; and
-
-reproducible figure and table generation.
-
-
-The analysis was conducted in R using packages including:
-
-        
-        text
-        
-    
-  
-      bibliometrix
-igraph
-ggraph
-ggplot2
-dplyr
-stringr
-tidyr
-viridis
-scales
-ggrepel
-    
-    
-  
-  
-The bibliometric time window is 2015–2025. Records from 2026 were excluded because 2026 was an incomplete indexing year at the retrieval date.
-
-For reference co-citation analysis, interpretation is limited to the subset of records with sufficiently complete cited-reference metadata.
-
-Database records and citation indicators are dynamic. Reproduction should therefore account for the documented retrieval date, database coverage, export settings, deduplication procedure, keyword-harmonization dictionary, and analytical thresholds.
-
-
-Conceptual Position
-
-EcoSentia does not replace existing biomimetic frameworks or standards. It extends them for AI-mediated design environments.
-
-Dimension	 | 	Established Biomimetic Processes	 | 	EcoSentia
-------------------------------------------------------------
-Primary Focus	 | 	Biological translation and iterative design	 | 	Governance of AI-assisted reasoning
-Role of AI	 | 	Optional or unspecified	 | 	Explicitly governed collaborator
-Human Role	 | 	Designer or process executor	 | 	Designer, interpreter, and responsible orchestrator
-Explainability	 | 	Often implicit	 | 	Explicit through lenses, roles, and reasoning states
-Responsibility Allocation	 | 	General or implicit	 | 	Phase-specific and explicit
-Operational Instrument	 | 	Not consistently standardized	 | 	EcoSentia Checkpoint
-EcoSentia is also complementary to output-focused methods such as retrieval-augmented generation. Retrieval-based systems may improve the evidentiary grounding of AI outputs, while EcoSentia structures how humans interrogate, contextualize, challenge, and take responsibility for those outputs.
-
-
-Project Status
-
-EcoSentia accompanies an unpublished manuscript currently under development.
-
-The framework and public application are research artifacts intended for:
-
-
-transparent examination;
-
-methodological discussion;
-
-reproducibility;
-
-formative evaluation; and
-
-responsible early-stage use.
-
-
-Repository materials may be refined as the manuscript, analyses, application, and supporting documentation are finalized.
-
-
-Citation
-
-The associated manuscript has not yet been published. Formal citation details will be added following publication.
+The associated manuscript has not yet been published. Formal citation metadata
+will be added when a public manuscript record becomes available.
 
 Until then, the project may be referenced as:
 
-        
-        text
-        
-    
-  
-      EcoSentia: A Human-Centric Framework for Evidence-Aware
-AI-Assisted Biomimetic Design.
-    
-    
-  
-  
-Please link to this repository when referring to the project:
+> **EcoSentia: A Human-Centric Governance Framework for Evidence-Aware
+> AI-Assisted Biomimetic Design.**  
+> Software repository: <https://github.com/Sogandste/EcoSentia>
 
-        
-        text
-        
-    
-  
-      https://github.com/Sogandste/EcoSentia
-    
-    
-  
-  
+Include the repository access date when required by the selected citation
+style.
 
-License
+---
 
-The source code and repository materials are distributed under the terms specified in the LICENSE file.
+## Contributing
 
-Unless explicitly stated otherwise, publication-related figures, manuscript text, third-party records, and externally sourced data should not be assumed to carry the same reuse permissions as the repository source code.
+Contributions that improve transparency, reproducibility, usability,
+accessibility, documentation, or testing are welcome.
 
-Please review the applicable licensing and attribution requirements before reuse or redistribution.
+Relevant contribution areas include:
 
+- Evidence-query construction
+- Retrieval reliability
+- Risk-screening logic
+- Domain-specific terminology
+- Negative-control claims
+- Interface accessibility
+- Reproducibility documentation
+- Test coverage
+- Output and reporting functions
 
-Access
+Changes affecting retrieval, support-level classification, or risk-screening
+behavior should be documented explicitly.
 
+---
 
+## Responsible Use
 
+Users remain responsible for:
 
+- Inspecting the retrieved literature
+- Evaluating study quality and relevance
+- Consulting appropriate domain experts
+- Documenting assumptions and uncertainties
+- Conducting necessary experimental evaluation
+- Assessing ethical and safety implications
+- Following institutional and regulatory requirements
 
+EcoSentia is intended to strengthen accountable inquiry, not automate
+scientific authority.
 
+---
 
-EcoSentia
+## License
 
-AI can expand the design space.
+This project is distributed under the **MIT License**.
 
-Human judgment must remain responsible for how that space is interpreted.
+Use, modification, and redistribution are permitted under the conditions stated
+in the [`LICENSE`](LICENSE) file.
 
+The software is provided without warranty. Scientific, engineering, clinical,
+ethical, safety, and regulatory interpretations remain the responsibility of
+the user.
 
+---
 
-```
+<div align="center">
 
+### Core Proposition
 
+**The central question is not whether AI can generate a biomimetic idea.**
 
+**The central question is whether humans can identify what supports that idea,
+what it assumes, where it may fail, and which decisions must remain under
+accountable human judgment.**
+
+<br>
+
+[![EcoSentia](https://img.shields.io/badge/EcoSentia-Evidence--Aware%20Human%20Judgment-e59aa5?style=for-the-badge)](https://github.com/Sogandste/EcoSentia)
+
+</div>
