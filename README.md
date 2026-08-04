@@ -677,3 +677,7 @@ accountable human judgment.**
 
 
 ![alt text](configuration-1.gif)
+
+- then we go to step 1 (Refine Search Query), in this step you can choose to refine your query or leave it without any change to for your claim:
+
+![alt text](step1.gif)
