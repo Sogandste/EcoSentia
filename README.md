@@ -678,6 +678,16 @@ accountable human judgment.**
 
 ![alt text](configuration-1.gif)
 
-- then we go to step 1 (Refine Search Query), in this step you can choose to refine your query or leave it without any change for your query:
+
+
+- then we go to step 1 (Refine Search Query), in this step you can choose to refine your query or leave it without any change:
 
 ![alt text](step1.gif)
+
+
+
+- then in final step we run our evidence scan to see our related recors and then Generate prompts that you can select any of [these prompt](#structured-prompt-outputs)
+and in final step you see your full multi-lens audit to give you more information for analysis. then you can get output in csv, json and html format(these are available formats now and it is possible to add other formats for output).
+
+
+![alt text](step2-3-4.gif)
