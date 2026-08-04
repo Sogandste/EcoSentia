@@ -675,4 +675,5 @@ accountable human judgment.**
 
 - according to [Checkpoint Workflow](#checkpoint-workflow) first you should select appropriate configuration for your problem:
 
-![alt text](configuration.gif)
+
+![alt text](configuration-1.gif)
