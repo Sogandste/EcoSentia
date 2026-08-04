@@ -28,6 +28,37 @@
 
 ---
 
+
+## Table of Contents
+
+- [EcoSentia Framework](#ecosentia-framework)
+- [Why EcoSentia?](#why-ecosentia)
+- [Checkpoint Workflow](#checkpoint-workflow)
+- [Five Analytical Lenses](#five-analytical-lenses)
+- [Translation-Risk Flags](#translation-risk-flags)
+- [Structured Prompt Outputs](#structured-prompt-outputs)
+- [Interpretation States](#interpretation-states)
+- [Demonstration Cases](#demonstration-cases)
+- [Evidence Interpretation](#evidence-interpretation)
+- [Reproducible Evaluation](#reproducible-evaluation)
+- [Research Design](#research-design)
+- [Two-Layer Architecture](#two-layer-architecture)
+- [Intended Users](#intended-users)
+- [Appropriate Use](#appropriate-use)
+- [Limitations and Prohibited Interpretation](#limitations-and-prohibited-interpretation)
+- [Local Installation](#local-installation)
+- [Configuration and API Use](#configuration-and-api-use)
+- [Repository Structure](#repository-structure)
+- [Research Status](#research-status)
+- [Citation](#citation)
+- [Contributing](#contributing)
+- [Responsible Use](#responsible-use)
+- [License](#license)
+
+
+
+
+
 ## EcoSentia Framework
 
 EcoSentia is a human-centric governance framework for critically examining
