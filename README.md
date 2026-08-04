@@ -54,6 +54,7 @@
 - [Contributing](#contributing)
 - [Responsible Use](#responsible-use)
 - [License](#license)
+- [How Ecosentia Work](#how-ecosentia-work)
 
 
 
@@ -667,3 +668,11 @@ accountable human judgment.**
 [![EcoSentia](https://img.shields.io/badge/EcoSentia-Evidence--Aware%20Human%20Judgment-e59aa5?style=for-the-badge)](https://github.com/Sogandste/EcoSentia)
 
 </div>
+
+## How Ecosentia Work
+
+### for more examination click [this link](https://huggingface.co/spaces/sogi23/EcoSentia) and do following steps mentioned below:
+
+- according to [Checkpoint Workflow](#checkpoint-workflow) first you should select appropriate configuration for your problem:
+
+![alt text](configuration.gif)
