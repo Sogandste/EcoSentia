@@ -1,0 +1,15 @@
+darkDict = {
+            "bg": "#0b0c10",
+            "panel": "#15171d",
+            "text": "#f4f4f5",
+            "border": "#2b2f38",
+            "hover": "#1a1d24",
+            "icon": "#f4f4f5",
+            "text_muted": "#a7afb9",
+            "shadow": "rgba(0,0,0,0.34)",
+            "focus_ring": "rgba(231,163,143,0.22)",
+            "input_bg": "#11141a",
+            "accent": "#e7a38f",
+            "accent_soft": "#e7a0ab",
+            "accent_bg": "rgba(231,163,143,0.12)",
+        }

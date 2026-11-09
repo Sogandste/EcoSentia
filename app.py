@@ -4,82 +4,29 @@ import json
 import os
 from datetime import datetime
 from html import escape
-from typing import Any, Dict, List, Tuple, TypedDict, cast
+from typing import Any, Dict, List, Tuple, cast
 
 import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
+from UI.Config.supportLevel import SUPPORT_LEVELS
+from UI.Model.Theme import ThemeDict
+from UI.Model.History import HistoryEntry
+from UI.Claim.Default import DEFAULT_CLAIMS
+from UI.Claim.Compare import DEFAULT_COMPARE_CLAIMS
+from UI.Style.darkTheme import darkDict
+from UI.Style.lightTheme import lightDict
+
 st.set_page_config(page_title="EcoSentia Checkpoint", layout="wide", page_icon="■")
 
-API_BASE = os.getenv("ECOSENTIA_API_URL", "https://ecosentia.onrender.com")
-APP_TITLE = "EcoSentia Checkpoint"
-APP_VERSION = "v0.5.4"
-HTTP_TIMEOUT = int(os.getenv("ECOSENTIA_HTTP_TIMEOUT", "120"))
-HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT", "10"))
+API_BASE = os.getenv("ECOSENTIA_API_URL")
+APP_TITLE = os.getenv("APP_TITLE")
+APP_VERSION = os.getenv("APP_VERSION")
+HTTP_TIMEOUT = os.getenv("ECOSENTIA_HTTP_TIMEOUT")
+HEALTH_TIMEOUT = os.getenv("ECOSENTIA_HEALTH_TIMEOUT")
 
-
-class SupportLevelConfig(TypedDict):
-    pct: int
-    color: str
-    label: str
-
-
-class ThemeDict(TypedDict):
-    bg: str
-    panel: str
-    text: str
-    border: str
-    hover: str
-    icon: str
-    text_muted: str
-    shadow: str
-    focus_ring: str
-    input_bg: str
-    accent: str
-    accent_soft: str
-    accent_bg: str
-
-
-class HistoryEntry(TypedDict):
-    time: str
-    claim: str
-    lens: str
-    support: str
-
-
-SUPPORT_LEVELS: Dict[str, SupportLevelConfig] = {
-    "none": {"pct": 5, "color": "#e59aa5", "label": "None"},
-    "limited": {"pct": 30, "color": "#ebb184", "label": "Limited"},
-    "indirect": {"pct": 50, "color": "#e3a377", "label": "Indirect"},
-    "moderate": {"pct": 70, "color": "#c2c9d4", "label": "Moderate"},
-    "direct": {"pct": 100, "color": "#d9dde5", "label": "Direct"},
-}
-
-DEFAULT_CLAIMS: Dict[str, str] = {
-    "Fog": (
-        "A surface structure inspired by the Namib desert beetle "
-        "for passive water collection and harvesting."
-    ),
-    "EV": (
-        "An extracellular vesicle-inspired nanoparticle for targeted "
-        "drug delivery in inflammatory disease."
-    ),
-    "Custom": "",  
-}
-
-DEFAULT_COMPARE_CLAIMS: Dict[str, Tuple[str, str]] = {
-    "Fog": (
-        "A surface structure inspired by the Namib desert beetle for passive fog harvesting and water collection.",
-        "A cactus-spine-inspired surface for directional fog capture and passive water transport.",
-    ),
-    "EV": (
-        "An extracellular vesicle-inspired nanoparticle for targeted drug delivery in inflammatory disease.",
-        "An extracellular-vesicle-inspired drug delivery system with low immunogenicity and natural tissue tropism.",
-    ),
-    "Custom": ("", ""), 
-}
 
 def get_http_session() -> requests.Session:
     if "_http_session" not in st.session_state:
@@ -237,38 +184,7 @@ def extract_lens_matrix(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_theme(dark_mode: bool) -> ThemeDict:
-    if dark_mode:
-        return {
-            "bg": "#0b0c10",
-            "panel": "#15171d",
-            "text": "#f4f4f5",
-            "border": "#2b2f38",
-            "hover": "#1a1d24",
-            "icon": "#f4f4f5",
-            "text_muted": "#a7afb9",
-            "shadow": "rgba(0,0,0,0.34)",
-            "focus_ring": "rgba(231,163,143,0.22)",
-            "input_bg": "#11141a",
-            "accent": "#e7a38f",
-            "accent_soft": "#e7a0ab",
-            "accent_bg": "rgba(231,163,143,0.12)",
-        }
-
-    return {
-        "bg": "#f7f7f8",
-        "panel": "#ffffff",
-        "text": "#17191d",
-        "border": "#e5e7eb",
-        "hover": "#f3f4f6",
-        "icon": "#17191d",
-        "text_muted": "#6e7683",
-        "shadow": "rgba(23,25,29,0.06)",
-        "focus_ring": "rgba(216,141,122,0.18)",
-        "input_bg": "#ffffff",
-        "accent": "#d88d7a",
-        "accent_soft": "#cf8695",
-        "accent_bg": "rgba(216,141,122,0.10)",
-    }
+    return darkDict if dark_mode else lightDict
 
 
 def inject_css(theme: ThemeDict) -> None:
@@ -827,17 +743,17 @@ def render_sidebar(api_health: str, theme: ThemeDict) -> None:
 
 
 def build_base_payload(
-    pid: str,
-    claim_text: str,
-    domain_mode: str,
-    lens_ui: str,
-    source: str,
-    max_results: int,
-    bio_model: str,
-    trg_func: str,
-    app_ctx: str,
-    mech_kw: str,
-    excl_kw: str,
+        pid: str,
+        claim_text: str,
+        domain_mode: str,
+        lens_ui: str,
+        source: str,
+        max_results: int,
+        bio_model: str,
+        trg_func: str,
+        app_ctx: str,
+        mech_kw: str,
+        excl_kw: str,
 ) -> Dict[str, Any]:
     return {
         "session_id": f"streamlit-{pid}",
@@ -919,6 +835,8 @@ def render_matrix_table(df: pd.DataFrame, theme: ThemeDict) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
 def get_panel_state(pid: str) -> Dict[str, Any]:
     """
     Collect all available outputs for a given panel into a structured report object.
@@ -1258,6 +1176,7 @@ def render_report_exports(pid: str) -> None:
             use_container_width=True,
         )
 
+
 def invalidate_panel_state(pid: str, claim_text: str) -> Dict[str, str]:
     keys = {
         "refined_query": f"refined_query_{pid}",
@@ -1391,19 +1310,19 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
 
 
 def render_panel(
-    pid: str,
-    claim_text: str,
-    domain_mode: str,
-    lens_ui: str,
-    source: str,
-    max_results: int,
-    bio_model: str,
-    trg_func: str,
-    app_ctx: str,
-    mech_kw: str,
-    excl_kw: str,
-    theme: ThemeDict,
-    comparison_layout: bool = False,
+        pid: str,
+        claim_text: str,
+        domain_mode: str,
+        lens_ui: str,
+        source: str,
+        max_results: int,
+        bio_model: str,
+        trg_func: str,
+        app_ctx: str,
+        mech_kw: str,
+        excl_kw: str,
+        theme: ThemeDict,
+        comparison_layout: bool = False,
 ) -> None:
     ensure_session_defaults()
     keys = invalidate_panel_state(pid, claim_text)
@@ -1430,9 +1349,9 @@ def render_panel(
     c1, c2 = st.columns(2)
     with c1:
         if st.button(
-            "Refine Query",
-            key=f"refine_btn_{pid}",
-            use_container_width=True,
+                "Refine Query",
+                key=f"refine_btn_{pid}",
+                use_container_width=True,
         ):
             with st.spinner("Refining query..."):
                 try:
@@ -1445,9 +1364,9 @@ def render_panel(
 
     with c2:
         if st.button(
-            "Use Claim As Query",
-            key=f"use_claim_btn_{pid}",
-            use_container_width=True,
+                "Use Claim As Query",
+                key=f"use_claim_btn_{pid}",
+                use_container_width=True,
         ):
             st.session_state[keys["refined_query"]] = claim_text
             st.session_state[keys["active_query"]] = claim_text
@@ -1468,9 +1387,9 @@ def render_panel(
     st.caption("Queries the selected literature source and builds an evidence snapshot.")
 
     if st.button(
-        "Execute Scan",
-        key=f"scan_btn_{pid}",
-        use_container_width=True,
+            "Execute Scan",
+            key=f"scan_btn_{pid}",
+            use_container_width=True,
     ):
         with st.spinner("Querying scientific literature..."):
             try:
@@ -1510,9 +1429,9 @@ def render_panel(
         render_note_box("Step Incomplete", "Please complete Step 2 before generating prompts.")
     else:
         if st.button(
-            "Generate Prompts",
-            key=f"prompts_btn_{pid}",
-            use_container_width=True,
+                "Generate Prompts",
+                key=f"prompts_btn_{pid}",
+                use_container_width=True,
         ):
             with st.spinner("Generating prompts..."):
                 try:
@@ -1545,15 +1464,15 @@ def render_panel(
     st.caption("Produces a multi-lens summary suitable for export and reporting.")
 
     if st.button(
-        "Execute Full Audit",
-        key=f"audit_btn_{pid}",
-        use_container_width=True,
+            "Execute Full Audit",
+            key=f"audit_btn_{pid}",
+            use_container_width=True,
     ):
         with st.spinner("Scanning all lenses..."):
             try:
                 response = api_post(
                     "/evidence/scan-all-lenses",
-                    {**payload_base, "query_text": q_text},   
+                    {**payload_base, "query_text": q_text},
                 )
                 matrix = extract_lens_matrix(response)
                 st.session_state[keys["matrix"]] = matrix
@@ -1614,6 +1533,8 @@ def render_panel(
             render_report_exports(pid)
     else:
         render_report_exports(pid)
+
+
 def main() -> None:
     ensure_session_defaults()
 
@@ -1736,7 +1657,7 @@ def main() -> None:
                 excl_kw=excl_kw,
                 theme=theme,
                 comparison_layout=True,
-            )    
+            )
 
         with right:
             st.markdown("### Panel B")

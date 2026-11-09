@@ -1,0 +1,15 @@
+lightDict = {
+        "bg": "#f7f7f8",
+        "panel": "#ffffff",
+        "text": "#17191d",
+        "border": "#e5e7eb",
+        "hover": "#f3f4f6",
+        "icon": "#17191d",
+        "text_muted": "#6e7683",
+        "shadow": "rgba(23,25,29,0.06)",
+        "focus_ring": "rgba(216,141,122,0.18)",
+        "input_bg": "#ffffff",
+        "accent": "#d88d7a",
+        "accent_soft": "#cf8695",
+        "accent_bg": "rgba(216,141,122,0.10)",
+    }
