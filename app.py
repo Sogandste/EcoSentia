@@ -1,11 +1,9 @@
 from __future__ import annotations
-
 import json
 import os
 from datetime import datetime
 from html import escape
 from typing import Any, Dict, List, Tuple, cast
-
 import pandas as pd
 import requests
 import streamlit as st
@@ -19,6 +17,9 @@ from UI.Claim.Compare import DEFAULT_COMPARE_CLAIMS
 from UI.Style.darkTheme import darkDict
 from UI.Style.lightTheme import lightDict
 
+from Logic.session import get_http_session, ensure_session_defaults
+from Logic.state import invalidate_panel_state, get_panel_state
+
 st.set_page_config(page_title="EcoSentia Checkpoint", layout="wide", page_icon="■")
 
 API_BASE = os.getenv("ECOSENTIA_API_URL")
@@ -26,29 +27,6 @@ APP_TITLE = os.getenv("APP_TITLE")
 APP_VERSION = os.getenv("APP_VERSION")
 HTTP_TIMEOUT = os.getenv("ECOSENTIA_HTTP_TIMEOUT")
 HEALTH_TIMEOUT = os.getenv("ECOSENTIA_HEALTH_TIMEOUT")
-
-
-def get_http_session() -> requests.Session:
-    if "_http_session" not in st.session_state:
-        st.session_state["_http_session"] = requests.Session()
-    return cast(requests.Session, st.session_state["_http_session"])
-
-
-def ensure_session_defaults() -> None:
-    defaults: Dict[str, Any] = {
-        "dark_mode": True,
-        "compare_mode": False,
-        "history": [],
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-
-def delete_keys(keys: List[str]) -> None:
-    for key in keys:
-        if key in st.session_state:
-            del st.session_state[key]
 
 
 def safe_get(data: Any, *path: str, default: Any = None) -> Any:
@@ -836,39 +814,6 @@ def render_matrix_table(df: pd.DataFrame, theme: ThemeDict) -> None:
         unsafe_allow_html=True,
     )
 
-
-def get_panel_state(pid: str) -> Dict[str, Any]:
-    """
-    Collect all available outputs for a given panel into a structured report object.
-    This export is intended for reproducibility and case documentation.
-    """
-    keys = {
-        "refined_query": f"refined_query_{pid}",
-        "active_query": f"active_query_{pid}",
-        "scan": f"scan_{pid}",
-        "prompts": f"prompts_{pid}",
-        "matrix": f"lens_matrix_{pid}",
-        "claim_cache": f"claim_cache_{pid}",
-    }
-
-    scan_state = ensure_dict(st.session_state.get(keys["scan"], {}))
-    prompts = ensure_dict(st.session_state.get(keys["prompts"], {}))
-    matrix = ensure_dict(st.session_state.get(keys["matrix"], {}))
-
-    return {
-        "app": APP_TITLE,
-        "version": APP_VERSION,
-        "exported_at": datetime.now().isoformat(timespec="seconds"),
-        "panel_id": pid,
-        "claim": st.session_state.get(keys["claim_cache"], ""),
-        "active_query": st.session_state.get(keys["active_query"], ""),
-        "refined_query": st.session_state.get(keys["refined_query"], ""),
-        "scan": scan_state,
-        "prompts": prompts,
-        "lens_matrix": matrix,
-    }
-
-
 def build_report_html(report: Dict[str, Any]) -> str:
     """
     Build a standalone HTML report from the current panel state.
@@ -1145,7 +1090,7 @@ def render_report_exports(pid: str) -> None:
     """
     Render complete report export controls for the current panel.
     """
-    report = get_panel_state(pid)
+    report = get_panel_state(pid, st.session_state)
     report_html = build_report_html(report)
     report_json = json.dumps(report, indent=2, ensure_ascii=False)
 
@@ -1175,31 +1120,6 @@ def render_report_exports(pid: str) -> None:
             key=f"json_report_btn_{pid}",
             use_container_width=True,
         )
-
-
-def invalidate_panel_state(pid: str, claim_text: str) -> Dict[str, str]:
-    keys = {
-        "refined_query": f"refined_query_{pid}",
-        "active_query": f"active_query_{pid}",
-        "scan": f"scan_{pid}",
-        "prompts": f"prompts_{pid}",
-        "matrix": f"lens_matrix_{pid}",
-        "claim_cache": f"claim_cache_{pid}",
-    }
-
-    if st.session_state.get(keys["claim_cache"]) != claim_text:
-        st.session_state[keys["claim_cache"]] = claim_text
-        delete_keys(
-            [
-                keys["refined_query"],
-                keys["active_query"],
-                keys["scan"],
-                keys["prompts"],
-                keys["matrix"],
-            ]
-        )
-    return keys
-
 
 def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
     m1, m2, m3 = st.columns(3)
@@ -1325,7 +1245,7 @@ def render_panel(
         comparison_layout: bool = False,
 ) -> None:
     ensure_session_defaults()
-    keys = invalidate_panel_state(pid, claim_text)
+    keys = invalidate_panel_state(pid, claim_text, st.session_state)
 
     payload_base = build_base_payload(
         pid=pid,
