@@ -1,0 +1,446 @@
+/* =========================
+   Global
+========================= */
+
+html, body, #root, .stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"] {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+.stMarkdown p,
+.stMarkdown span,
+.stMarkdown li,
+.stMarkdown h1,
+.stMarkdown h2,
+.stMarkdown h3,
+.stMarkdown h4,
+.stMarkdown h5,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] span,
+label {
+    color: var(--text) !important;
+}
+
+[data-testid="stCaptionContainer"] p,
+.stCaption p,
+small {
+    color: var(--text-muted) !important;
+}
+
+hr {
+    border-top: 1px solid var(--border) !important;
+    opacity: 1 !important;
+}
+
+
+/* =========================
+   Sidebar
+========================= */
+
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div {
+    background: var(--panel) !important;
+    border-right: 1px solid var(--border) !important;
+}
+
+
+/* =========================
+   Sidebar Controls
+========================= */
+
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] button,
+[data-testid="stSidebarCollapseButton"] button,
+button[data-testid="baseButton-headerNoPadding"],
+button[kind="headerNoPadding"] {
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px var(--shadow) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+[data-testid="collapsedControl"] svg,
+[data-testid="stSidebarCollapseButton"] svg,
+button[data-testid="baseButton-headerNoPadding"] svg,
+button[kind="headerNoPadding"] svg {
+    fill: var(--icon) !important;
+    stroke: var(--icon) !important;
+    color: var(--icon) !important;
+}
+
+
+/* =========================
+   Inputs
+========================= */
+
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+div[data-baseweb="select"] > div {
+    background: var(--input-bg) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    transition: all .16s ease !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted) !important;
+    opacity: .78 !important;
+}
+
+input:hover,
+textarea:hover,
+input:focus,
+textarea:focus,
+input:focus-visible,
+textarea:focus-visible,
+div[data-baseweb="select"] > div:hover,
+div[data-baseweb="select"] > div:focus-within {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring) !important;
+    outline: none !important;
+}
+
+
+/* =========================
+   Selectbox
+========================= */
+
+div[data-baseweb="select"] svg {
+    fill: var(--icon) !important;
+    color: var(--icon) !important;
+}
+
+div[data-baseweb="popover"] {
+    background: var(--panel) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 12px 28px var(--shadow) !important;
+}
+
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] [role="listbox"],
+div[data-baseweb="popover"] li,
+li[role="option"] {
+    background: var(--panel) !important;
+    color: var(--text) !important;
+}
+
+div[data-baseweb="select"] > div,
+div[data-baseweb="select"] > div > div,
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] div[value] {
+    color: var(--text) !important;
+}
+
+div[data-baseweb="popover"] li,
+div[data-baseweb="popover"] li *,
+li[role="option"],
+li[role="option"] * {
+    color: var(--text) !important;
+    background: var(--panel) !important;
+}
+
+li[role="option"]:hover,
+li[aria-selected="true"],
+li[role="option"]:hover *,
+li[aria-selected="true"] * {
+    background: var(--hover) !important;
+    color: var(--text) !important;
+}
+
+
+/* =========================
+   Radio
+========================= */
+
+div[role="radiogroup"] label,
+div[role="radiogroup"] label *,
+div[data-baseweb="radio"] *,
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] label * {
+    color: var(--text) !important;
+}
+
+
+/* =========================
+   Slider
+========================= */
+
+[data-testid="stSlider"] label,
+[data-testid="stSlider"] * {
+    color: var(--text) !important;
+}
+
+
+/* =========================
+   Expander
+========================= */
+
+[data-testid="stExpander"] {
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px var(--shadow) !important;
+    overflow: hidden !important;
+    margin-bottom: 12px !important;
+    transition: all .18s ease !important;
+}
+
+[data-testid="stExpander"]:hover {
+    border-color: var(--accent) !important;
+}
+
+[data-testid="stExpander"] summary {
+    background: var(--panel) !important;
+    padding: 14px 16px !important;
+}
+
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary div {
+    color: var(--text) !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stExpander"] > div > div {
+    background: var(--bg) !important;
+    padding: 16px !important;
+}
+
+
+/* =========================
+   Metrics
+========================= */
+
+[data-testid="metric-container"] {
+    background: var(--panel) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px var(--shadow) !important;
+    transition: all .18s ease !important;
+}
+
+[data-testid="metric-container"]:hover {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-bg) !important;
+}
+
+[data-testid="stMetricValue"] > div {
+    color: var(--text) !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stMetricLabel"] > div {
+    color: var(--text-muted) !important;
+}
+
+
+/* =========================
+   Buttons
+========================= */
+
+.stButton > button,
+[data-testid="stDownloadButton"] > button {
+    background: var(--accent-bg) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px var(--shadow) !important;
+    transition: all .18s ease !important;
+    font-weight: 600 !important;
+}
+
+.stButton > button:hover,
+[data-testid="stDownloadButton"] > button:hover,
+.stButton > button:focus,
+[data-testid="stDownloadButton"] > button:focus,
+.stButton > button:focus-visible,
+[data-testid="stDownloadButton"] > button:focus-visible {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring) !important;
+    outline: none !important;
+}
+
+
+/* =========================
+   Code Blocks
+========================= */
+
+.stCodeBlock {
+    background: var(--bg) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 10px !important;
+}
+
+.stCodeBlock pre,
+.stCodeBlock code,
+.stCodeBlock span {
+    color: var(--text) !important;
+}
+
+
+/* =========================
+   Custom Components
+========================= */
+
+.note-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 8px 0 16px 0;
+}
+
+.note-title {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .45px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.note-body {
+    color: var(--text-muted);
+    line-height: 1.65;
+    font-size: 13px;
+}
+
+.risk-panel {
+    background: var(--panel) !important;
+    border: 1px solid var(--accent) !important;
+    border-left: 3px solid var(--accent-soft) !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 10px !important;
+    line-height: 1.65 !important;
+}
+
+.risk-title {
+    color: var(--accent) !important;
+    font-weight: 700 !important;
+    margin-bottom: 5px !important;
+    display: block !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: .45px !important;
+}
+
+
+/* =========================
+   Matrix Table
+========================= */
+
+.matrix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.matrix-table thead tr {
+    background: var(--hover);
+}
+
+.matrix-table thead th {
+    padding: 11px 16px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-muted) !important;
+}
+
+.matrix-table tbody td {
+    padding: 12px 16px;
+    color: var(--text) !important;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+}
+
+
+/* =========================
+   Badge
+========================= */
+
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .35px;
+    text-transform: uppercase;
+    background: var(--accent-bg) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent) !important;
+}
+
+
+/* =========================
+   Checklist
+========================= */
+
+.checklist-box {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    margin-bottom: 14px;
+}
+
+.checklist-title {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 10px;
+}
+
+.checklist-box ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.checklist-box li {
+    margin: 0 0 8px 0;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+
+/* =========================
+   Scrollbar
+========================= */
+
+::-webkit-scrollbar {
+    width: 7px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}

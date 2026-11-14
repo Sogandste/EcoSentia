@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from dotenv import load_dotenv
 
 from UI.Config.supportLevel import SUPPORT_LEVELS
 from UI.Model.Theme import ThemeDict
@@ -21,12 +22,16 @@ from Logic.session import get_http_session, ensure_session_defaults
 from Logic.state import invalidate_panel_state, get_panel_state
 
 st.set_page_config(page_title="EcoSentia Checkpoint", layout="wide", page_icon="■")
+load_dotenv('E:\\ashkan-project\EcoSentia\.env', verbose=True)
 
 API_BASE = os.getenv("ECOSENTIA_API_URL")
 APP_TITLE = os.getenv("APP_TITLE")
 APP_VERSION = os.getenv("APP_VERSION")
-HTTP_TIMEOUT = os.getenv("ECOSENTIA_HTTP_TIMEOUT")
-HEALTH_TIMEOUT = os.getenv("ECOSENTIA_HEALTH_TIMEOUT")
+HTTP_TIMEOUT = int(os.getenv("ECOSENTIA_HTTP_TIMEOUT"))
+HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT"))
+DARK_THEME_PATH = os.getenv("DARK_THEME_PATH")
+LIGHT_THEME_PATH = os.getenv("LIGHT_THEME_PATH")
+BASE_THEME_PATH = os.getenv("BASE_THEME_PATH")
 
 
 def safe_get(data: Any, *path: str, default: Any = None) -> Any:
@@ -43,14 +48,6 @@ def first_non_empty(*values: Any) -> Any:
         if value not in (None, "", [], {}):
             return value
     return None
-
-
-def ensure_dict(value: Any) -> Dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def ensure_list(value: Any) -> List[Any]:
-    return value if isinstance(value, list) else []
 
 
 def coerce_bias_list(value: Any) -> List[Any]:
@@ -108,7 +105,7 @@ def get_api_health() -> str:
             )
         else:
             message = f"API Connected · {API_BASE}"
-    except Exception:
+    except Exception as e:
         message = f"API Not Reachable · {API_BASE}"
 
     st.session_state["api_health"] = message
@@ -139,7 +136,8 @@ def extract_scan_payload(response: Dict[str, Any], fallback_query: str) -> Tuple
         safe_get(response, "results", "query_text"),
         fallback_query,
     )
-    return ensure_dict(snapshot), str(query_text)
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    return snapshot, str(query_text)
 
 
 def extract_prompts_payload(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -148,7 +146,7 @@ def extract_prompts_payload(response: Dict[str, Any]) -> Dict[str, Any]:
         safe_get(response, "data", "prompts"),
         response if "master_prompt" in response else None,
     )
-    return ensure_dict(prompts)
+    return prompts if isinstance(prompts, dict) else {}
 
 
 def extract_lens_matrix(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -158,378 +156,31 @@ def extract_lens_matrix(response: Dict[str, Any]) -> Dict[str, Any]:
         safe_get(response, "data", "lens_matrix"),
         safe_get(response, "results", "lens_matrix"),
     )
-    return ensure_dict(matrix)
+    return matrix if isinstance(matrix, dict) else {}
 
 
 def get_theme(dark_mode: bool) -> ThemeDict:
     return darkDict if dark_mode else lightDict
 
 
-def inject_css(theme: ThemeDict) -> None:
+def inject_css(is_dark: bool) -> None:
+
+
+    themePath = DARK_THEME_PATH if is_dark else LIGHT_THEME_PATH
+
+    with open(themePath, "r", encoding="utf-8") as file:
+        css = file.read()
+    with open(BASE_THEME_PATH, "r", encoding="utf-8") as file:
+        base = file.read()
+
     st.markdown(
         f"""
-<style>
-:root {{
-  --text-color: {theme['text']} !important;
-  --background-color: {theme['bg']} !important;
-  --secondary-background-color: {theme['panel']} !important;
-  --primary-color: {theme['accent']} !important;
-}}
-
-html, body, #root, .stApp, [data-testid="stAppViewContainer"],
-[data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
-  background: {theme['bg']} !important;
-  color: {theme['text']} !important;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif !important;
-}}
-
-.stMarkdown p, .stMarkdown span, .stMarkdown li, .stMarkdown h1,
-.stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5,
-[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, label {{
-  color: {theme['text']} !important;
-}}
-
-[data-testid="stCaptionContainer"] p, .stCaption p, small {{
-  color: {theme['text_muted']} !important;
-}}
-
-hr {{
-  border-top: 1px solid {theme['border']} !important;
-  opacity: 1 !important;
-}}
-
-[data-testid="stSidebar"], [data-testid="stSidebar"] > div {{
-  background: {theme['panel']} !important;
-  border-right: 1px solid {theme['border']} !important;
-}}
-
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] button,
-[data-testid="stSidebarCollapseButton"] button,
-button[data-testid="baseButton-headerNoPadding"],
-button[kind="headerNoPadding"] {{
-  background: {theme['panel']} !important;
-  border: 1px solid {theme['border']} !important;
-  border-radius: 8px !important;
-  box-shadow: 0 2px 8px {theme['shadow']} !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}}
-
-[data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapseButton"] svg,
-button[data-testid="baseButton-headerNoPadding"] svg,
-button[kind="headerNoPadding"] svg {{
-  fill: {theme['icon']} !important;
-  stroke: {theme['icon']} !important;
-  color: {theme['icon']} !important;
-}}
-
-input[type="text"], input[type="number"], input[type="search"], textarea,
-div[data-baseweb="select"] > div {{
-  background: {theme['input_bg']} !important;
-  color: {theme['text']} !important;
-  border: 1px solid {theme['border']} !important;
-  border-radius: 10px !important;
-  transition: all .16s ease !important;
-}}
-
-input::placeholder, textarea::placeholder {{
-  color: {theme['text_muted']} !important;
-  opacity: .78 !important;
-}}
-
-input:hover, textarea:hover, input:focus, textarea:focus,
-input:focus-visible, textarea:focus-visible,
-div[data-baseweb="select"] > div:hover,
-div[data-baseweb="select"] > div:focus-within {{
-  border-color: {theme['accent']} !important;
-  box-shadow: 0 0 0 3px {theme['focus_ring']} !important;
-  outline: none !important;
-}}
-
-div[data-baseweb="select"] svg {{
-  fill: {theme['icon']} !important;
-  color: {theme['icon']} !important;
-}}
-
-div[data-baseweb="popover"] {{
-  background: {theme['panel']} !important;
-  border: 1px solid {theme['accent']} !important;
-  border-radius: 10px !important;
-  box-shadow: 0 12px 28px {theme['shadow']} !important;
-}}
-
-div[data-baseweb="popover"] ul,
-div[data-baseweb="popover"] [role="listbox"],
-div[data-baseweb="popover"] li,
-li[role="option"] {{
-  background: {theme['panel']} !important;
-  color: {theme['text']} !important;
-}}
-
-div[data-baseweb="select"] > div,
-div[data-baseweb="select"] > div > div,
-div[data-baseweb="select"] span,
-div[data-baseweb="select"] div[value] {{
-  color: {theme['text']} !important;
-}}
-
-div[data-baseweb="popover"] li,
-div[data-baseweb="popover"] li *,
-li[role="option"],
-li[role="option"] * {{
-  color: {theme['text']} !important;
-  background: {theme['panel']} !important;
-}}
-
-/* hover و selected */
-li[role="option"]:hover,
-li[role="option"]:hover *,
-li[aria-selected="true"],
-li[aria-selected="true"] * {{
-  background: {theme['hover']} !important;
-  color: {theme['text']} !important;
-}}
-
-/* radio و horizontal options (Preset / Source) */
-div[role="radiogroup"] label,
-div[role="radiogroup"] label *,
-div[data-baseweb="radio"] *,
-[data-testid="stRadio"] label,
-[data-testid="stRadio"] label * {{
-  color: {theme['text']} !important;
-}}
-
-/* slider label و مقادیر */
-[data-testid="stSlider"] label,
-[data-testid="stSlider"] * {{
-  color: {theme['text']} !important;
-}}
-li[role="option"]:hover,
-li[aria-selected="true"] {{
-  background: {theme['hover']} !important;
-}}
-
-[data-testid="stExpander"] {{
-  background: {theme['panel']} !important;
-  border: 1px solid {theme['border']} !important;
-  border-radius: 12px !important;
-  box-shadow: 0 2px 8px {theme['shadow']} !important;
-  overflow: hidden !important;
-  margin-bottom: 12px !important;
-  transition: all .18s ease !important;
-}}
-
-[data-testid="stExpander"]:hover {{
-  border-color: {theme['accent']} !important;
-}}
-
-[data-testid="stExpander"] summary {{
-  background: {theme['panel']} !important;
-  padding: 14px 16px !important;
-}}
-
-[data-testid="stExpander"] summary p,
-[data-testid="stExpander"] summary span,
-[data-testid="stExpander"] summary div {{
-  color: {theme['text']} !important;
-  font-weight: 600 !important;
-}}
-
-[data-testid="stExpander"] > div > div {{
-  background: {theme['bg']} !important;
-  padding: 16px !important;
-}}
-
-[data-testid="metric-container"] {{
-  background: {theme['panel']} !important;
-  border: 1px solid {theme['accent']} !important;
-  border-radius: 12px !important;
-  box-shadow: 0 2px 8px {theme['shadow']} !important;
-  transition: all .18s ease !important;
-}}
-
-[data-testid="metric-container"]:hover {{
-  border-color: {theme['accent']} !important;
-  box-shadow: 0 0 0 2px {theme['accent_bg']} !important;
-}}
-
-[data-testid="stMetricValue"] > div {{
-  color: {theme['text']} !important;
-  font-weight: 700 !important;
-}}
-
-[data-testid="stMetricLabel"] > div {{
-  color: {theme['text_muted']} !important;
-}}
-
-.stButton > button,
-[data-testid="stDownloadButton"] > button {{
-  background: {theme['accent_bg']} !important;
-  color: {theme['accent']} !important;
-  border: 1px solid {theme['accent']} !important;
-  border-radius: 10px !important;
-  box-shadow: 0 2px 8px {theme['shadow']} !important;
-  transition: all .18s ease !important;
-  font-weight: 600 !important;
-}}
-
-.stButton > button:hover,
-[data-testid="stDownloadButton"] > button:hover,
-.stButton > button:focus,
-[data-testid="stDownloadButton"] > button:focus,
-.stButton > button:focus-visible,
-[data-testid="stDownloadButton"] > button:focus-visible {{
-  background: {theme['accent']} !important;
-  color: #ffffff !important;
-  border-color: {theme['accent']} !important;
-  box-shadow: 0 0 0 3px {theme['focus_ring']} !important;
-  outline: none !important;
-}}
-
-.stCodeBlock {{
-  background: {theme['bg']} !important;
-  border: 1px solid {theme['accent']} !important;
-  border-radius: 10px !important;
-}}
-
-.stCodeBlock pre, .stCodeBlock code, .stCodeBlock span {{
-  color: {theme['text']} !important;
-}}
-
-.note-box {{
-  background: {theme['panel']};
-  border: 1px solid {theme['border']};
-  border-left: 3px solid {theme['accent']};
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin: 8px 0 16px 0;
-}}
-
-.note-title {{
-  color: {theme['accent']};
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .45px;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}}
-
-.note-body {{
-  color: {theme['text_muted']};
-  line-height: 1.65;
-  font-size: 13px;
-}}
-
-.risk-panel {{
-  background: {theme['panel']} !important;
-  border: 1px solid {theme['accent']} !important;
-  border-left: 3px solid {theme['accent_soft']} !important;
-  border-radius: 10px !important;
-  padding: 12px 14px !important;
-  margin-bottom: 10px !important;
-  line-height: 1.65 !important;
-}}
-
-.risk-title {{
-  color: {theme['accent']} !important;
-  font-weight: 700 !important;
-  margin-bottom: 5px !important;
-  display: block !important;
-  font-size: 12px !important;
-  text-transform: uppercase !important;
-  letter-spacing: .45px !important;
-}}
-
-.matrix-table {{
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid {theme['accent']}33;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px {theme['shadow']};
-}}
-
-.matrix-table thead tr {{
-  background: {theme['hover']};
-}}
-
-.matrix-table thead th {{
-  padding: 11px 16px;
-  text-align: left;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: {theme['text_muted']} !important;
-}}
-
-.matrix-table tbody td {{
-  padding: 12px 16px;
-  color: {theme['text']} !important;
-  background: {theme['panel']};
-  border-top: 1px solid {theme['border']};
-}}
-
-.badge {{
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .35px;
-  text-transform: uppercase;
-  background: {theme['accent_bg']} !important;
-  color: {theme['accent']} !important;
-  border: 1px solid {theme['accent']} !important;
-}}
-
-.checklist-box {{
-  background: {theme['panel']};
-  border: 1px solid {theme['accent']};
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-top: 10px;
-  margin-bottom: 14px;
-}}
-
-.checklist-title {{
-  color: {theme['accent']};
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  margin-bottom: 10px;
-}}
-
-.checklist-box ul {{
-  margin: 0;
-  padding-left: 18px;
-}}
-
-.checklist-box li {{
-  margin: 0 0 8px 0;
-  color: {theme['text']};
-  line-height: 1.6;
-}}
-
-::-webkit-scrollbar {{
-  width: 7px;
-}}
-
-::-webkit-scrollbar-track {{
-  background: {theme['bg']};
-}}
-
-::-webkit-scrollbar-thumb {{
-  background: {theme['border']};
-  border-radius: 999px;
-}}
-</style>
+        <style>
+            {css}
+            {base}
+        </style>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 
@@ -565,8 +216,8 @@ def render_note_box(title: str, body: str) -> None:
     st.markdown(
         f"""
         <div class="note-box">
-          <div class="note-title">{html_safe(title)}</div>
-          <div class="note-body">{html_safe(body)}</div>
+          <div class="note-title">{escape("" if title is None else str(title))}</div>
+          <div class="note-body">{escape("" if body is None else str(body))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -581,7 +232,7 @@ def render_support_bar_html(level: str, text_color: str, border_color: str, acce
                   font-size:11px;font-weight:700;color:{accent_color};
                   letter-spacing:.6px;text-transform:uppercase;opacity:.95;">
         <span>Evidence Support Level</span>
-        <span style="color:{accent_color};">{html_safe(cfg['label'])}</span>
+        <span style="color:{accent_color};">{escape("" if cfg['label'] is None else str(cfg['label']))}</span>
       </div>
       <div style="width:100%;height:5px;background:{border_color};
                   border-radius:999px;overflow:hidden;">
@@ -596,19 +247,13 @@ def render_support_bar_html(level: str, text_color: str, border_color: str, acce
     """
 
 
-def _js_escape(text: str) -> str:
-    return (
-        text.replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("\n", "\\n")
-        .replace("\r", "")
-        .replace("</", "<\\/")
-        .replace('"', '\\"')
-    )
-
-
 def render_copy_button(text: str, icon_color: str, border_color: str, accent_color: str) -> None:
-    escaped = _js_escape(text)
+    escaped = (text.replace("\\", "\\\\")
+               .replace("`", "\\`")
+               .replace("\n", "\\n")
+               .replace("\r", "")
+               .replace("</", "<\\/")
+               .replace('"', '\\"'))
     components.html(
         f"""
         <button
@@ -755,7 +400,7 @@ def build_matrix_dataframe(matrix: Dict[str, Any]) -> Tuple[pd.DataFrame, List[s
     levels: List[str] = []
 
     for lens_name, result in matrix.items():
-        result_dict = ensure_dict(result)
+        result_dict = result if isinstance(result, dict) else {}
         if result_dict.get("error"):
             rows.append(
                 {
@@ -814,22 +459,22 @@ def render_matrix_table(df: pd.DataFrame, theme: ThemeDict) -> None:
         unsafe_allow_html=True,
     )
 
+
 def build_report_html(report: Dict[str, Any]) -> str:
     """
     Build a standalone HTML report from the current panel state.
     The report can be opened in a browser and printed/saved as PDF.
     """
-    scan = ensure_dict(report.get("scan"))
-    snapshot = ensure_dict(scan.get("snapshot"))
-    prompts = ensure_dict(report.get("prompts"))
-    matrix = ensure_dict(report.get("lens_matrix"))
 
-    top_records = ensure_list(snapshot.get("top_records"))
+    snapshot = report.get("snapshot") if isinstance(report.get("snapshot"), dict) else {}
+    prompts = report.get("prompts") if isinstance(report.get("prompts"), dict) else {}
+    matrix = report.get("matrix") if isinstance(report.get("matrix"), dict) else {}
+    top_records = snapshot.get("top_records") if isinstance(snapshot.get("top_records"), list) else []
     biases = coerce_bias_list(prompts.get("detected_biases"))
 
     top_records_html = ""
     for record in top_records:
-        record_dict = ensure_dict(record)
+        record_dict = record if isinstance(record, dict) else {}
         title = html_safe(record_dict.get("title", "Untitled"))
         url = html_safe(record_dict.get("url", ""))
         source = html_safe(record_dict.get("source", ""))
@@ -877,8 +522,7 @@ def build_report_html(report: Dict[str, Any]) -> str:
             <h3>{label}</h3>
             <pre>{value}</pre>
             """
-
-    look_for_items = ensure_list(prompts.get("look_for"))
+    look_for_items = prompts.get("look_for") if isinstance(prompts.get("look_for"), list) else []
     look_for_html = ""
     if look_for_items:
         items = "".join(f"<li>{html_safe(item)}</li>" for item in look_for_items)
@@ -889,7 +533,7 @@ def build_report_html(report: Dict[str, Any]) -> str:
 
     matrix_rows = ""
     for lens_name, result in matrix.items():
-        result_dict = ensure_dict(result)
+        result_dict = result if isinstance(result, dict) else {}
         support = html_safe(result_dict.get("support_level", "none"))
         risk_list = coerce_bias_list(result_dict.get("detected_biases"))
         risk_text = (
@@ -1121,6 +765,7 @@ def render_report_exports(pid: str) -> None:
             use_container_width=True,
         )
 
+
 def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Records", snapshot.get("combined_count", 0))
@@ -1142,13 +787,13 @@ def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
         str(snapshot.get("summary", "No summary available.")),
     )
 
-    top_records = ensure_list(snapshot.get("top_records"))
-    top_titles = ensure_list(snapshot.get("top_titles"))
+    top_records = snapshot.get("top_records") if isinstance(snapshot.get("top_records"), list) else []
+    top_titles = snapshot.get("top_titles") if isinstance(snapshot.get("top_titles"), list) else []
 
     if top_records:
         with st.expander("Top Retrieved Titles"):
             for record in top_records:
-                record_dict = ensure_dict(record)
+                record_dict = record if isinstance(record, dict) else {}
                 title = str(record_dict.get("title", "Untitled"))
                 url = str(record_dict.get("url", ""))
                 src = str(record_dict.get("source", "")).title()
@@ -1159,8 +804,8 @@ def render_scan_results(snapshot: Dict[str, Any], theme: ThemeDict) -> None:
                     st.markdown(f"- [{html_safe(title)}]({url})")
                 else:
                     st.write(f"- {title}")
-
-                matched_terms = ensure_list(record_dict.get("matched_terms"))
+                matched_terms = record_dict.get("matched_terms") if isinstance(record_dict.get("matched_terms"),
+                                                                               list) else []
                 if matched_terms:
                     st.caption(f"{meta} · Matched: {', '.join(map(str, matched_terms[:4]))}")
     elif top_titles:
@@ -1214,8 +859,7 @@ def render_prompt_results(prompts: Dict[str, Any], theme: ThemeDict) -> None:
             if value:
                 render_copy_button(value, theme["accent"], theme["border"], theme["accent"])
                 st.code(value, language="text")
-
-    look_for = ensure_list(prompts.get("look_for"))
+    look_for = prompts.get("look_for") if isinstance(prompts.get("look_for"), list) else []
     if look_for:
         checklist_items = "".join(f"<li>{html_safe(item)}</li>" for item in look_for)
         st.markdown(
@@ -1331,8 +975,8 @@ def render_panel(
                 render_note_box("Scan Error", str(exc))
 
     if keys["scan"] in st.session_state:
-        scan_state = ensure_dict(st.session_state[keys["scan"]])
-        snapshot = ensure_dict(scan_state.get("snapshot"))
+        scan_state = st.session_state[keys["scan"]] if isinstance(st.session_state[keys["scan"]], dict) else {}
+        snapshot = scan_state.get("snapshot") if isinstance(scan_state.get("snapshot"), dict) else {}
 
         if comparison_layout:
             with st.container(height=360):
@@ -1355,13 +999,14 @@ def render_panel(
         ):
             with st.spinner("Generating prompts..."):
                 try:
-                    scan_state = ensure_dict(st.session_state[keys["scan"]])
+                    scan_state = st.session_state[keys["scan"]] if isinstance(st.session_state[keys["scan"]], dict) else {}
                     payload_prompts = {
                         "preset": domain_mode.lower(),
                         "lens": lens_ui.lower(),
                         "claim": claim_text,
                         "query_text": str(scan_state.get("query_text", q_text)),
-                        "snapshot": ensure_dict(scan_state.get("snapshot")),
+                        "snapshot": scan_state.get("snapshot") if isinstance(scan_state.get("snapshot"),
+                                                                                     dict) else {},
                     }
                     response = api_post("/evidence/prompts", payload_prompts)
                     prompts = extract_prompts_payload(response)
@@ -1370,7 +1015,7 @@ def render_panel(
                     render_note_box("Prompt Generation Error", str(exc))
 
         if keys["prompts"] in st.session_state:
-            prompts = ensure_dict(st.session_state[keys["prompts"]])
+            prompts = st.session_state[keys["prompts"]] if isinstance(st.session_state[keys["prompts"]], dict) else {}
 
             if comparison_layout:
                 with st.container(height=620):
@@ -1400,7 +1045,7 @@ def render_panel(
                 render_note_box("Audit Error", str(exc))
 
     if keys["matrix"] in st.session_state:
-        matrix = ensure_dict(st.session_state[keys["matrix"]])
+        matrix = st.session_state[keys["matrix"]] if isinstance(st.session_state[keys["matrix"]], dict) else {}
         df, _ = build_matrix_dataframe(matrix)
 
         def render_matrix_block() -> None:
@@ -1461,7 +1106,7 @@ def main() -> None:
     api_health = get_api_health()
     theme = get_theme(st.session_state.dark_mode)
 
-    inject_css(theme)
+    inject_css(st.session_state.dark_mode)
     render_sidebar(api_health, theme)
     render_header(theme)
 
