@@ -32,6 +32,8 @@ HEALTH_TIMEOUT = int(os.getenv("ECOSENTIA_HEALTH_TIMEOUT"))
 DARK_THEME_PATH = os.getenv("DARK_THEME_PATH")
 LIGHT_THEME_PATH = os.getenv("LIGHT_THEME_PATH")
 BASE_THEME_PATH = os.getenv("BASE_THEME_PATH")
+HTML_DARK_HEADER_PATH = os.getenv("HTML_DARK_HEADER_PATH")
+HTML_LIGHT_HEADER_PATH = os.getenv("HTML_LIGHT_HEADER_PATH")
 
 
 def safe_get(data: Any, *path: str, default: Any = None) -> Any:
@@ -184,31 +186,15 @@ def inject_css(is_dark: bool) -> None:
     )
 
 
-def render_header(theme: ThemeDict) -> None:
+def render_header(is_dark: bool) -> None:
+    themePath = HTML_DARK_HEADER_PATH if is_dark else HTML_LIGHT_HEADER_PATH
+
+    with open(themePath, "r", encoding="utf-8") as file:
+        darkHeader = file.read()
+
     st.markdown(
-        f"""
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;margin-top:8px;">
-          <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="45" fill="none" stroke="{theme['text']}" stroke-width="2" opacity="0.15"/>
-            <path d="M50 85 C80 80, 85 45, 50 15 C65 40, 65 65, 50 85 Z"
-                  fill="none" stroke="{theme['text']}" stroke-width="2.5" stroke-linecap="round"/>
-            <line x1="50" y1="35" x2="50" y2="85"
-                  stroke="{theme['text']}" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
-            <path d="M30 25 L70 25 L60 35 L40 35 Z"
-                  fill="none" stroke="{theme['text']}" stroke-width="2.5" opacity="0.8"/>
-          </svg>
-          <div>
-            <div style="font-size:22px;font-weight:600;letter-spacing:.4px;color:{theme['text']};line-height:1.15;">
-              {APP_TITLE}
-            </div>
-            <div style="font-size:11px;letter-spacing:1px;color:{theme['text_muted']};
-                        margin-top:4px;text-transform:uppercase;font-weight:500;">
-              Evidence and Interrogation Layer {APP_VERSION}
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        darkHeader,
+        unsafe_allow_html=True
     )
 
 
