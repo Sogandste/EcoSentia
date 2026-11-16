@@ -4,5 +4,6 @@ defaults: Dict[str, Any] = {
     "dark_mode": True,
     "compare_mode": False,
     "history": [],
+    "guide_completed": False,
 
 }
